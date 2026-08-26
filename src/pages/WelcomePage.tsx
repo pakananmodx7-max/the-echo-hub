@@ -24,7 +24,8 @@ export function WelcomePage() {
           🏫
         </div>
         <div>
-          <h1 className="text-4xl font-bold tracking-tight text-ink">THE ECHO</h1>
+          <p className="text-sm font-medium tracking-wide text-ink-soft">โรงเรียนสักงามวิทยา</p>
+          <h1 className="mt-1 text-4xl font-bold tracking-tight text-ink">THE ECHO</h1>
           <p className="mt-1 text-lg font-medium text-lavender-600">Hear with Heart 🤍</p>
         </div>
         <p className="max-w-xs text-balance text-[15px] leading-relaxed text-ink-soft">
