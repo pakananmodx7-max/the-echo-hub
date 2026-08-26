@@ -1,0 +1,57 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import { RequireAuth, RequireOnboarding } from './components/RouteGuards'
+import { WelcomePage } from './pages/WelcomePage'
+import { LoginPage } from './pages/LoginPage'
+import { RegisterPage } from './pages/RegisterPage'
+import { CreateCodenamePage } from './pages/CreateCodenamePage'
+import { MoodCheckinPage } from './pages/MoodCheckinPage'
+import { HubLayout } from './pages/hub/HubLayout'
+import { HomePage } from './pages/hub/HomePage'
+import { EchoSpacePage } from './pages/hub/EchoSpacePage'
+import { ActivitiesPage } from './pages/hub/ActivitiesPage'
+import { SendSongPage } from './pages/hub/activities/SendSongPage'
+import { SayItTodayPage } from './pages/hub/activities/SayItTodayPage'
+import { HearSomeonePage } from './pages/hub/activities/HearSomeonePage'
+import { TalkPage } from './pages/hub/TalkPage'
+import { FriendBondPage } from './pages/hub/friends/FriendBondPage'
+import { FriendQuestPage } from './pages/hub/friends/FriendQuestPage'
+import { WhoAmIPage } from './pages/hub/friends/WhoAmIPage'
+import { ProfilePage } from './pages/hub/ProfilePage'
+
+function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<WelcomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+
+        <Route element={<RequireAuth />}>
+          <Route path="/onboarding/codename" element={<CreateCodenamePage />} />
+          <Route path="/onboarding/mood" element={<MoodCheckinPage />} />
+
+          <Route element={<RequireOnboarding />}>
+            <Route path="/hub" element={<HubLayout />}>
+              <Route index element={<HomePage />} />
+              <Route path="space" element={<EchoSpacePage />} />
+              <Route path="activities" element={<ActivitiesPage />} />
+              <Route path="activities/send-song" element={<SendSongPage />} />
+              <Route path="activities/say-it-today" element={<SayItTodayPage />} />
+              <Route path="activities/hear-someone" element={<HearSomeonePage />} />
+              <Route path="talk" element={<TalkPage />} />
+              <Route path="friends" element={<FriendBondPage />} />
+              <Route path="friends/quest" element={<FriendQuestPage />} />
+              <Route path="friends/who-am-i" element={<WhoAmIPage />} />
+              <Route path="me" element={<ProfilePage />} />
+            </Route>
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthProvider>
+  )
+}
+
+export default App
