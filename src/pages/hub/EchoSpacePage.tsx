@@ -2,18 +2,17 @@ import { useMemo, useState } from 'react'
 import { PageHeader } from '../../components/PageHeader'
 import { Avatar } from '../../components/Avatar'
 import { Card } from '../../components/Card'
-import { Modal } from '../../components/Modal'
-import { Button } from '../../components/Button'
+import { ChatRequestModal } from '../../components/ChatRequestModal'
 import { MOODS, getMoodById } from '../../data/moods'
 import { ONLINE_USERS } from '../../data/onlineUsers'
-import type { EchoUser, MoodId } from '../../types'
+import { useChatRequest } from '../../hooks/useChatRequest'
+import type { MoodId } from '../../types'
 
 type FilterId = 'all' | MoodId
 
 export function EchoSpacePage() {
   const [filter, setFilter] = useState<FilterId>('all')
-  const [target, setTarget] = useState<EchoUser | null>(null)
-  const [sentIds, setSentIds] = useState<Set<string>>(new Set())
+  const chatRequest = useChatRequest()
 
   const filters: { id: FilterId; label: string }[] = [
     { id: 'all', label: 'ทั้งหมด' },
@@ -24,13 +23,6 @@ export function EchoSpacePage() {
     () => (filter === 'all' ? ONLINE_USERS : ONLINE_USERS.filter((u) => u.mood === filter)),
     [filter],
   )
-
-  function handleSend() {
-    if (!target) return
-    setSentIds((prev) => new Set(prev).add(target.id))
-  }
-
-  const alreadySent = target ? sentIds.has(target.id) : false
 
   return (
     <div>
@@ -59,7 +51,7 @@ export function EchoSpacePage() {
         <div className="mt-4 flex flex-col gap-3 pb-4">
           {visibleUsers.map((u) => {
             const mood = getMoodById(u.mood)
-            const sent = sentIds.has(u.id)
+            const sent = chatRequest.alreadySentTo(u.id)
             return (
               <Card key={u.id} className="flex items-center gap-3 py-4">
                 <div className="relative">
@@ -74,7 +66,7 @@ export function EchoSpacePage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setTarget(u)}
+                  onClick={() => chatRequest.request(u)}
                   disabled={sent}
                   className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition active:scale-95 ${
                     sent
@@ -92,36 +84,7 @@ export function EchoSpacePage() {
         </div>
       </div>
 
-      <Modal open={!!target} onClose={() => setTarget(null)}>
-        {target ? (
-          alreadySent ? (
-            <div className="text-center">
-              <p className="text-3xl" aria-hidden>
-                ✓
-              </p>
-              <p className="mt-2 font-semibold text-ink">ส่งคำขอแล้ว ✓</p>
-              <Button fullWidth className="mt-5" onClick={() => setTarget(null)}>
-                ปิด
-              </Button>
-            </div>
-          ) : (
-            <div>
-              <h2 className="text-lg font-bold text-ink">ส่งคำขอคุยให้ {target.codename}?</h2>
-              <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-                "อีกฝ่ายจะเป็นคนเลือกว่าจะรับคำขอหรือไม่"
-              </p>
-              <div className="mt-5 flex flex-col gap-2.5">
-                <Button fullWidth onClick={handleSend}>
-                  ส่งคำขอ 🤍
-                </Button>
-                <Button fullWidth variant="ghost" onClick={() => setTarget(null)}>
-                  ยกเลิก
-                </Button>
-              </div>
-            </div>
-          )
-        ) : null}
-      </Modal>
+      <ChatRequestModal chatRequest={chatRequest} />
     </div>
   )
 }

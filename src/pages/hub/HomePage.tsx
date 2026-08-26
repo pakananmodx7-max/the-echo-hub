@@ -7,6 +7,7 @@ import { MoodPicker } from '../../components/MoodPicker'
 import { Button } from '../../components/Button'
 import { getMoodById } from '../../data/moods'
 import { ONLINE_USERS } from '../../data/onlineUsers'
+import { gardenPresenceService } from '../../features/garden/gardenPresenceService'
 import { useAuth } from '../../hooks/useAuth'
 import type { MoodId } from '../../types'
 
@@ -19,6 +20,7 @@ export function HomePage() {
   const mood = getMoodById(user.mood ?? undefined)
   const previewAvatars = ONLINE_USERS.slice(0, 5)
   const completedCount = user.completedActivityIds.length
+  const gardenMembers = gardenPresenceService.listMembers()
 
   async function handleConfirmMood() {
     if (pendingMood) await setMood(pendingMood)
@@ -80,6 +82,26 @@ export function HomePage() {
           <Link to="/hub/space">
             <Button fullWidth variant="secondary" className="mt-4">
               เข้า Echo Space →
+            </Button>
+          </Link>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-mint/30 to-white">
+          <p className="text-lg font-semibold text-ink">🌿 ECHO GARDEN</p>
+          <p className="mt-1 text-sm text-ink-soft">พื้นที่เล็ก ๆ สำหรับพัก ฟัง และแบ่งปัน</p>
+          <div className="mt-4 flex items-center gap-2">
+            <div className="flex -space-x-3">
+              {gardenMembers.slice(0, 4).map((m) => (
+                <div key={m.id} className="ring-2 ring-white rounded-full">
+                  <Avatar avatarId={m.avatarId} size="sm" />
+                </div>
+              ))}
+            </div>
+            <span className="text-sm text-ink-soft">มี {gardenMembers.length} คนอยู่ในสวน</span>
+          </div>
+          <Link to="/hub/garden">
+            <Button fullWidth variant="soft-mint" className="mt-4">
+              เข้าสวน →
             </Button>
           </Link>
         </Card>

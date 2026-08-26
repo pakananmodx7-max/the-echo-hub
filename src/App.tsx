@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { RequireAuth, RequireOnboarding } from './components/RouteGuards'
@@ -21,6 +22,11 @@ import { ProfilePage } from './pages/hub/ProfilePage'
 import { DrawingHubPage } from './pages/hub/drawing/DrawingHubPage'
 import { EchoJournalPage } from './pages/hub/drawing/EchoJournalPage'
 import { DrawAndListenPage } from './pages/hub/drawing/DrawAndListenPage'
+import { GardenLoadingScreen } from './pages/hub/garden/GardenLoadingScreen'
+
+const EchoGardenPage = lazy(() =>
+  import('./pages/hub/garden/EchoGardenPage').then((m) => ({ default: m.EchoGardenPage })),
+)
 
 function App() {
   return (
@@ -43,6 +49,14 @@ function App() {
               <Route path="activities/say-it-today" element={<SayItTodayPage />} />
               <Route path="activities/hear-someone" element={<HearSomeonePage />} />
               <Route path="talk" element={<TalkPage />} />
+              <Route
+                path="garden"
+                element={
+                  <Suspense fallback={<GardenLoadingScreen />}>
+                    <EchoGardenPage />
+                  </Suspense>
+                }
+              />
               <Route path="draw" element={<DrawingHubPage />} />
               <Route path="draw/journal" element={<EchoJournalPage />} />
               <Route path="draw/listen" element={<DrawAndListenPage />} />
