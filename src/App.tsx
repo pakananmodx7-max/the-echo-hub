@@ -18,6 +18,9 @@ import { FriendBondPage } from './pages/hub/friends/FriendBondPage'
 import { FriendQuestPage } from './pages/hub/friends/FriendQuestPage'
 import { WhoAmIPage } from './pages/hub/friends/WhoAmIPage'
 import { ProfilePage } from './pages/hub/ProfilePage'
+import { DrawingHubPage } from './pages/hub/drawing/DrawingHubPage'
+import { EchoJournalPage } from './pages/hub/drawing/EchoJournalPage'
+import { DrawAndListenPage } from './pages/hub/drawing/DrawAndListenPage'
 
 function App() {
   return (
@@ -40,6 +43,9 @@ function App() {
               <Route path="activities/say-it-today" element={<SayItTodayPage />} />
               <Route path="activities/hear-someone" element={<HearSomeonePage />} />
               <Route path="talk" element={<TalkPage />} />
+              <Route path="draw" element={<DrawingHubPage />} />
+              <Route path="draw/journal" element={<EchoJournalPage />} />
+              <Route path="draw/listen" element={<DrawAndListenPage />} />
               <Route path="friends" element={<FriendBondPage />} />
               <Route path="friends/quest" element={<FriendQuestPage />} />
               <Route path="friends/who-am-i" element={<WhoAmIPage />} />

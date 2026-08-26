@@ -95,6 +95,16 @@ export function HomePage() {
           </Link>
         </Card>
 
+        <Card className="bg-gradient-to-br from-lavender-100 to-white">
+          <p className="text-lg font-semibold text-ink">🎨 วาด & ฟัง</p>
+          <p className="mt-1 text-sm text-ink-soft">ใช้ภาพเป็นจุดเริ่มต้นของบทสนทนา</p>
+          <Link to="/hub/draw">
+            <Button fullWidth variant="secondary" className="mt-4">
+              เริ่มวาด →
+            </Button>
+          </Link>
+        </Card>
+
         <Card className="bg-gradient-to-br from-mint/40 to-white">
           <p className="text-lg font-semibold text-ink">🫶 FRIEND BOND</p>
           <p className="mt-1 text-sm text-ink-soft">เกมเล็ก ๆ ที่ทำให้เรารู้จักกันมากขึ้น</p>

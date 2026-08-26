@@ -45,3 +45,19 @@ export interface HubActivity {
   to: string
   accent: 'lavender' | 'pink' | 'mint'
 }
+
+export interface JournalEntry {
+  id: string
+  dataUrl: string
+  mood: MoodId | null
+  reflection: string
+  createdAt: string
+  source: 'journal' | 'draw-and-listen'
+}
+
+export type DrawListenPartner = 'friend' | 'family'
+
+export interface ListenerReflectionOption {
+  id: string
+  label: string
+}
