@@ -21,7 +21,7 @@ export function WelcomePage() {
 
       <div className="flex flex-1 flex-col items-center justify-center gap-6">
         <div className="text-6xl" aria-hidden>
-          🤍
+          🏫
         </div>
         <div>
           <h1 className="text-4xl font-bold tracking-tight text-ink">THE ECHO</h1>
