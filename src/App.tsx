@@ -27,6 +27,9 @@ import { GardenLoadingScreen } from './pages/hub/garden/GardenLoadingScreen'
 const EchoGardenPage = lazy(() =>
   import('./pages/hub/garden/EchoGardenPage').then((m) => ({ default: m.EchoGardenPage })),
 )
+const AvatarStudioPage = lazy(() =>
+  import('./pages/hub/garden/studio/AvatarStudioPage').then((m) => ({ default: m.AvatarStudioPage })),
+)
 
 function App() {
   return (
@@ -54,6 +57,14 @@ function App() {
                 element={
                   <Suspense fallback={<GardenLoadingScreen />}>
                     <EchoGardenPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="garden/studio"
+                element={
+                  <Suspense fallback={<GardenLoadingScreen />}>
+                    <AvatarStudioPage />
                   </Suspense>
                 }
               />

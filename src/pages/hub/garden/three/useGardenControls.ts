@@ -1,17 +1,27 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
+export type GardenControlMode = 'tap' | 'joystick'
+
+const CONTROL_MODE_KEY = 'echoHub.demo.gardenControlMode'
+const DEFAULT_CAMERA_DIST = 6.2
 
 export interface GardenControls {
   keysRef: { current: Set<string> }
   joystickRef: { current: { x: number; y: number } }
   cameraYawRef: { current: number }
+  cameraPitchRef: { current: number }
+  cameraDistRef: { current: number }
+  /** World-space [x, z] the avatar is currently walking toward, or null. */
+  moveTargetRef: { current: [number, number] | null }
 }
 
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'])
 
 /**
- * Desktop keyboard (WASD/arrows) + a place for the mobile joystick and
- * camera-drag yaw to write into. Plain refs on purpose — read every render
- * frame inside useFrame, so they must not trigger React re-renders.
+ * Desktop keyboard (WASD/arrows) + a place for the mobile joystick,
+ * tap-to-move target, and camera drag/pinch to write into. Plain refs on
+ * purpose — read every render frame inside useFrame, so they must not
+ * trigger React re-renders.
  */
 export function useGardenControls(): GardenControls {
   const controls = useMemo<GardenControls>(
@@ -19,6 +29,9 @@ export function useGardenControls(): GardenControls {
       keysRef: { current: new Set<string>() },
       joystickRef: { current: { x: 0, y: 0 } },
       cameraYawRef: { current: 0 },
+      cameraPitchRef: { current: 0 },
+      cameraDistRef: { current: DEFAULT_CAMERA_DIST },
+      moveTargetRef: { current: null },
     }),
     [],
   )
@@ -28,6 +41,7 @@ export function useGardenControls(): GardenControls {
       const key = e.key.toLowerCase()
       if (MOVE_KEYS.has(key)) {
         controls.keysRef.current.add(key)
+        controls.moveTargetRef.current = null
       }
     }
     function onKeyUp(e: KeyboardEvent) {
@@ -42,4 +56,26 @@ export function useGardenControls(): GardenControls {
   }, [controls])
 
   return controls
+}
+
+export function useGardenControlMode(): [GardenControlMode, (mode: GardenControlMode) => void] {
+  const [mode, setModeState] = useState<GardenControlMode>(() => {
+    try {
+      const raw = localStorage.getItem(CONTROL_MODE_KEY)
+      return raw === 'joystick' ? 'joystick' : 'tap'
+    } catch {
+      return 'tap'
+    }
+  })
+
+  function setMode(next: GardenControlMode) {
+    setModeState(next)
+    try {
+      localStorage.setItem(CONTROL_MODE_KEY, next)
+    } catch {
+      // ignore
+    }
+  }
+
+  return [mode, setMode]
 }

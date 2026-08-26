@@ -2,15 +2,13 @@ import type { GardenObjectDef } from './gardenLayout'
 
 interface GardenObjectProps {
   def: GardenObjectDef
-  active: boolean
-  onSelect: (id: GardenObjectDef['id']) => void
 }
 
-export function GardenObject({ def, onSelect }: GardenObjectProps) {
+export function GardenObject({ def }: GardenObjectProps) {
   const [x, z] = def.position
 
   return (
-    <group onClick={() => onSelect(def.id)}>
+    <group>
       {def.id === 'song-tree' ? <SongTreeMesh x={x} z={z} /> : null}
       {def.id === 'kind-word' ? <KindWordMesh x={x} z={z} /> : null}
       {(def.id === 'listening-stone-1' || def.id === 'listening-stone-2') && <StoneMesh x={x} z={z} />}
@@ -23,17 +21,25 @@ export function GardenObject({ def, onSelect }: GardenObjectProps) {
 function SongTreeMesh({ x, z }: { x: number; z: number }) {
   return (
     <group position={[x, 0, z]}>
-      <mesh position={[0, 0.6, 0]}>
-        <cylinderGeometry args={[0.22, 0.3, 1.2, 8]} />
+      <mesh position={[0, 0.6, 0]} castShadow>
+        <cylinderGeometry args={[0.22, 0.32, 1.2, 8]} />
         <meshStandardMaterial color="#8a6a4f" roughness={0.9} />
       </mesh>
-      <mesh position={[0, 1.9, 0]}>
-        <icosahedronGeometry args={[1.1, 0]} />
-        <meshStandardMaterial color="#8fd6b4" roughness={0.8} />
+      <mesh position={[0, 1.95, 0]} castShadow>
+        <icosahedronGeometry args={[1.15, 1]} />
+        <meshStandardMaterial color="#7fbf99" roughness={0.85} />
       </mesh>
-      <mesh position={[0.7, 1.5, 0.4]}>
-        <icosahedronGeometry args={[0.55, 0]} />
-        <meshStandardMaterial color="#a7e0c2" roughness={0.8} />
+      <mesh position={[0.72, 1.55, 0.42]} castShadow>
+        <icosahedronGeometry args={[0.58, 1]} />
+        <meshStandardMaterial color="#8fd6b4" roughness={0.85} />
+      </mesh>
+      <mesh position={[-0.68, 1.65, -0.35]} castShadow>
+        <icosahedronGeometry args={[0.52, 1]} />
+        <meshStandardMaterial color="#a7e0c2" roughness={0.85} />
+      </mesh>
+      <mesh position={[0.1, 2.55, -0.4]} castShadow>
+        <icosahedronGeometry args={[0.46, 1]} />
+        <meshStandardMaterial color="#96d4b0" roughness={0.85} />
       </mesh>
     </group>
   )

@@ -7,17 +7,23 @@ import { useAuth } from '../../../hooks/useAuth'
 import { useChatRequest } from '../../../hooks/useChatRequest'
 import { detectWebGL } from '../../../features/garden/detectWebGL'
 import { gardenPresenceService } from '../../../features/garden/gardenPresenceService'
+import { avatarProfileService } from '../../../features/garden/avatarProfileService'
+import { DEFAULT_GARDEN_AVATAR_CONFIG } from '../../../data/gardenAvatarOptions'
+import { DEFAULT_GARDEN_TRACK } from '../../../data/gardenTracks'
 import { GardenLoadingScreen } from './GardenLoadingScreen'
 import { Garden2DFallback } from './Garden2DFallback'
 import { GardenErrorBoundary } from './GardenErrorBoundary'
 import { GardenHUD } from './GardenHUD'
+import { GardenSettingsPanel } from './GardenSettingsPanel'
 import { GardenChatPanel } from './GardenChatPanel'
 import { GardenOnlinePanel } from './GardenOnlinePanel'
 import { SongTreeModal } from './modals/SongTreeModal'
 import { KindWordModal } from './modals/KindWordModal'
 import { ListeningStoneModal } from './modals/ListeningStoneModal'
 import { PrivateBenchModal } from './modals/PrivateBenchModal'
-import { useGardenControls } from './three/useGardenControls'
+import { useGardenControls, useGardenControlMode } from './three/useGardenControls'
+import { useGardenQuality } from './three/useGardenQuality'
+import { useGardenMusic } from './useGardenMusic'
 import { GARDEN_OBJECTS, type GardenObjectDef } from './three/gardenLayout'
 
 const GardenScene = lazy(() =>
@@ -31,6 +37,9 @@ export function EchoGardenPage() {
   const { user } = useAuth()
   const chatRequest = useChatRequest()
   const controls = useGardenControls()
+  const [controlMode, setControlMode] = useGardenControlMode()
+  const quality = useGardenQuality()
+  const music = useGardenMusic(DEFAULT_GARDEN_TRACK)
 
   const [webglOk, setWebglOk] = useState<boolean | null>(null)
   const [pageVisible, setPageVisible] = useState(!document.hidden)
@@ -38,6 +47,9 @@ export function EchoGardenPage() {
   const [panel, setPanel] = useState<Panel>(null)
 
   const members = useMemo(() => gardenPresenceService.listMembers(), [])
+  const avatarConfig = user
+    ? (avatarProfileService.getConfig(user.id) ?? DEFAULT_GARDEN_AVATAR_CONFIG)
+    : DEFAULT_GARDEN_AVATAR_CONFIG
 
   useEffect(() => {
     setWebglOk(detectWebGL())
@@ -51,7 +63,15 @@ export function EchoGardenPage() {
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
+  useEffect(() => {
+    if (user && !avatarProfileService.hasConfig(user.id)) {
+      navigate('/hub/garden/studio', { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
   if (!user) return null
+  if (!avatarProfileService.hasConfig(user.id)) return null
   const currentUser = { id: user.id, codename: user.codename ?? 'You', avatarId: user.avatarId }
 
   function handleSelectObject(id: GardenObjectDef['id']) {
@@ -67,6 +87,18 @@ export function EchoGardenPage() {
 
   const nearestDef = GARDEN_OBJECTS.find((o) => o.id === nearestId) ?? null
 
+  const musicProps = {
+    track: DEFAULT_GARDEN_TRACK,
+    status: music.status,
+    isPlaying: music.isPlaying,
+    muted: music.muted,
+    volume: music.volume,
+    onPlay: music.play,
+    onPause: music.pause,
+    onToggleMute: music.toggleMute,
+    onChangeVolume: music.changeVolume,
+  }
+
   const fallback2DProps = {
     memberCount: members.length,
     onOpenChat: () => setPanel('chat'),
@@ -80,6 +112,9 @@ export function EchoGardenPage() {
 
   return (
     <div className="fixed inset-0 z-50 bg-cream">
+      {/* Hidden YouTube player host — mounted once here so playback survives panel switches. */}
+      <div ref={music.hostRef} className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0" />
+
       {webglOk === null ? (
         <GardenLoadingScreen />
       ) : webglOk === false ? (
@@ -111,15 +146,16 @@ export function EchoGardenPage() {
             <div className="relative h-full w-full">
               <GardenScene
                 controls={controls}
-                playerAvatarId={currentUser.avatarId}
+                playerAvatarConfig={avatarConfig}
                 members={members}
-                nearestId={nearestId}
                 onNearestChange={setNearestId}
-                onSelectObject={handleSelectObject}
                 paused={!pageVisible}
+                quality={quality.settings}
+                onFrame={quality.reportFrame}
               />
               <GardenHUD
                 controls={controls}
+                controlMode={controlMode}
                 memberCount={members.length}
                 interaction={nearestDef ? { icon: nearestDef.icon, label: nearestDef.label } : null}
                 onInteract={() => nearestId && handleSelectObject(nearestId)}
@@ -128,6 +164,7 @@ export function EchoGardenPage() {
                 onOpenOnline={() => setPanel('online')}
                 onOpenSettings={() => setPanel('settings')}
                 onExit={() => navigate('/hub')}
+                music={musicProps}
               />
             </div>
           </Suspense>
@@ -186,14 +223,14 @@ export function EchoGardenPage() {
       </Modal>
 
       <Modal open={panel === 'settings'} onClose={() => setPanel(null)}>
-        <h2 className="text-lg font-bold text-ink">⚙️ การตั้งค่าสวน</h2>
-        <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-          ECHO GARDEN แสดง Codename, Avatar และ Mood ของคุณเท่านั้น ไม่แสดงชื่อจริง อีเมล
-          หรือข้อมูลส่วนตัวอื่น ๆ ข้อมูลในสวนเวอร์ชันนี้เป็นข้อมูลทดลอง (Demo) และเก็บไว้ในเครื่องของคุณเท่านั้น
-        </p>
-        <Button fullWidth className="mt-4" onClick={() => setPanel(null)}>
-          เข้าใจแล้ว
-        </Button>
+        <GardenSettingsPanel
+          controlMode={controlMode}
+          onControlModeChange={setControlMode}
+          qualityMode={quality.mode}
+          onQualityModeChange={quality.setMode}
+          onEditAvatar={() => navigate('/hub/garden/studio')}
+          onClose={() => setPanel(null)}
+        />
       </Modal>
 
       <SongTreeModal open={panel === 'song'} onClose={() => setPanel(null)} currentUser={currentUser} />

@@ -27,6 +27,7 @@ export function GardenJoystick({ controls }: GardenJoystickProps) {
     }
     setKnob({ x: dx, y: dy })
     controls.joystickRef.current = { x: dx / TRACK_RADIUS, y: dy / TRACK_RADIUS }
+    controls.moveTargetRef.current = null
   }
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {

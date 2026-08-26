@@ -1,5 +1,22 @@
 import type { MoodId } from '../../types'
 
+export type GardenSkinTone = 'porcelain' | 'warm' | 'tan' | 'deep' | 'cocoa'
+export type GardenHairStyle = 'short' | 'medium' | 'tied' | 'wavy' | 'long'
+export type GardenTopStyle = 'hoodie' | 'tshirt' | 'sweater' | 'shirt'
+export type GardenBottomStyle = 'pants' | 'shorts' | 'skirt'
+export type GardenAccessory = 'none' | 'glasses' | 'cap' | 'beanie' | 'headphones' | 'backpack'
+
+export interface GardenAvatarConfig {
+  skinTone: GardenSkinTone
+  hairStyle: GardenHairStyle
+  hairColor: string
+  topStyle: GardenTopStyle
+  topColor: string
+  bottomStyle: GardenBottomStyle
+  bottomColor: string
+  accessory: GardenAccessory
+}
+
 export interface GardenMember {
   id: string
   codename: string
