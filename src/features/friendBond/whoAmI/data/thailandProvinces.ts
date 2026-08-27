@@ -1,0 +1,95 @@
+import type { WhoAmIEntry } from '../types'
+
+// All 77 provinces of Thailand, grouped by the standard 6-region scheme
+// (ภาคเหนือ 9, ภาคตะวันออกเฉียงเหนือ 20, ภาคกลาง 22, ภาคตะวันออก 7, ภาคตะวันตก 5, ภาคใต้ 14 = 77).
+// Hints stick to safe, well-known, verifiable facts (region, borders, coastline, one confident landmark).
+export const THAILAND_PROVINCES: WhoAmIEntry[] = [
+  // ภาคเหนือ (9)
+  { id: 'prov-chiangmai', answer: 'เชียงใหม่', category: 'thailand-provinces', subcategory: 'north', difficulty: 'easy', hints: ['อยู่ภาคเหนือ', 'มีดอยสุเทพ', 'มีประเพณียี่เป็ง', 'เมืองท่องเที่ยวสำคัญของภาคเหนือ'], metadata: { region: 'north' } },
+  { id: 'prov-chiangrai', answer: 'เชียงราย', category: 'thailand-provinces', subcategory: 'north', difficulty: 'easy', hints: ['อยู่ภาคเหนือสุดของไทย', 'มีวัดร่องขุ่น', 'มีดอยแม่สลอง'], metadata: { region: 'north' } },
+  { id: 'prov-lampang', answer: 'ลำปาง', category: 'thailand-provinces', subcategory: 'north', difficulty: 'normal', hints: ['อยู่ภาคเหนือ', 'ขึ้นชื่อเรื่องรถม้า', 'มีสัญลักษณ์ไก่ขาว'], metadata: { region: 'north' } },
+  { id: 'prov-lamphun', answer: 'ลำพูน', category: 'thailand-provinces', subcategory: 'north', difficulty: 'normal', hints: ['อยู่ภาคเหนือ', 'ติดกับเชียงใหม่', 'ปลูกลำไยมาก'], metadata: { region: 'north' } },
+  { id: 'prov-maehongson', answer: 'แม่ฮ่องสอน', category: 'thailand-provinces', subcategory: 'north', difficulty: 'normal', hints: ['อยู่ภาคเหนือ', 'มีอำเภอปาย', 'มีพรมแดนติดเมียนมา'], metadata: { region: 'north' } },
+  { id: 'prov-nan', answer: 'น่าน', category: 'thailand-provinces', subcategory: 'north', difficulty: 'normal', hints: ['อยู่ภาคเหนือ', 'มีวัดภูมินทร์', 'มีพรมแดนติดลาว'], metadata: { region: 'north' } },
+  { id: 'prov-phayao', answer: 'พะเยา', category: 'thailand-provinces', subcategory: 'north', difficulty: 'normal', hints: ['อยู่ภาคเหนือ', 'มีกว๊านพะเยา'], metadata: { region: 'north' } },
+  { id: 'prov-phrae', answer: 'แพร่', category: 'thailand-provinces', subcategory: 'north', difficulty: 'normal', hints: ['อยู่ภาคเหนือ', 'ขึ้นชื่อเรื่องไม้สัก'], metadata: { region: 'north' } },
+  { id: 'prov-uttaradit', answer: 'อุตรดิตถ์', category: 'thailand-provinces', subcategory: 'north', difficulty: 'hard', hints: ['อยู่ภาคเหนือตอนล่าง', 'มีเขื่อนสิริกิติ์'], metadata: { region: 'north' } },
+
+  // ภาคตะวันออกเฉียงเหนือ / อีสาน (20)
+  { id: 'prov-kalasin', answer: 'กาฬสินธุ์', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'normal', hints: ['อยู่ภาคอีสาน', 'มีการค้นพบฟอสซิลไดโนเสาร์'], metadata: { region: 'northeast' } },
+  { id: 'prov-khonkaen', answer: 'ขอนแก่น', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'easy', hints: ['อยู่ภาคอีสาน', 'เป็นศูนย์กลางเศรษฐกิจภาคอีสาน'], metadata: { region: 'northeast' } },
+  { id: 'prov-chaiyaphum', answer: 'ชัยภูมิ', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'normal', hints: ['อยู่ภาคอีสาน', 'มีทุ่งดอกกระเจียวที่อุทยานแห่งชาติป่าหินงาม'], metadata: { region: 'northeast' } },
+  { id: 'prov-nakhonphanom', answer: 'นครพนม', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'normal', hints: ['อยู่ภาคอีสาน ริมแม่น้ำโขง', 'มีพระธาตุพนม', 'มีพรมแดนติดลาว'], metadata: { region: 'northeast' } },
+  { id: 'prov-nakhonratchasima', answer: 'นครราชสีมา (โคราช)', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'easy', hints: ['อยู่ภาคอีสาน', 'เรียกกันว่าโคราช', 'มีปราสาทหินพิมาย'], metadata: { region: 'northeast' } },
+  { id: 'prov-buengkan', answer: 'บึงกาฬ', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'hard', hints: ['อยู่ภาคอีสาน ริมแม่น้ำโขง', 'เป็นจังหวัดที่ตั้งใหม่ล่าสุดของไทย'], metadata: { region: 'northeast' } },
+  { id: 'prov-burirum', answer: 'บุรีรัมย์', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'easy', hints: ['อยู่ภาคอีสาน', 'มีปราสาทหินพนมรุ้ง', 'มีสนามฟุตบอลช้างอารีนา'], metadata: { region: 'northeast' } },
+  { id: 'prov-mahasarakham', answer: 'มหาสารคาม', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'normal', hints: ['อยู่ภาคอีสาน', 'ถือเป็นเมืองมหาวิทยาลัย'], metadata: { region: 'northeast' } },
+  { id: 'prov-mukdahan', answer: 'มุกดาหาร', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'normal', hints: ['อยู่ภาคอีสาน ริมแม่น้ำโขง', 'มีสะพานมิตรภาพไทย-ลาว'], metadata: { region: 'northeast' } },
+  { id: 'prov-yasothon', answer: 'ยโสธร', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'hard', hints: ['อยู่ภาคอีสาน', 'มีประเพณีบุญบั้งไฟ'], metadata: { region: 'northeast' } },
+  { id: 'prov-roiet', answer: 'ร้อยเอ็ด', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'normal', hints: ['อยู่ภาคอีสาน', 'มีบึงพลาญชัย'], metadata: { region: 'northeast' } },
+  { id: 'prov-loei', answer: 'เลย', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'normal', hints: ['อยู่ภาคอีสาน', 'อากาศหนาวเย็น', 'มีภูกระดึง'], metadata: { region: 'northeast' } },
+  { id: 'prov-sisaket', answer: 'ศรีสะเกษ', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'normal', hints: ['อยู่ภาคอีสาน', 'ปลูกทุเรียนภูเขาไฟ'], metadata: { region: 'northeast' } },
+  { id: 'prov-sakonnakhon', answer: 'สกลนคร', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'normal', hints: ['อยู่ภาคอีสาน', 'มีหนองหาน'], metadata: { region: 'northeast' } },
+  { id: 'prov-surin', answer: 'สุรินทร์', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'easy', hints: ['อยู่ภาคอีสาน', 'มีงานแสดงช้างสุรินทร์'], metadata: { region: 'northeast' } },
+  { id: 'prov-nongkhai', answer: 'หนองคาย', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'normal', hints: ['อยู่ภาคอีสาน ริมแม่น้ำโขง', 'มีสะพานมิตรภาพไทย-ลาวแห่งแรก'], metadata: { region: 'northeast' } },
+  { id: 'prov-nongbualamphu', answer: 'หนองบัวลำภู', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'hard', hints: ['อยู่ภาคอีสาน'], metadata: { region: 'northeast' } },
+  { id: 'prov-amnatcharoen', answer: 'อำนาจเจริญ', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'hard', hints: ['อยู่ภาคอีสาน'], metadata: { region: 'northeast' } },
+  { id: 'prov-udonthani', answer: 'อุดรธานี', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'easy', hints: ['อยู่ภาคอีสาน', 'อยู่ใกล้แหล่งโบราณคดีบ้านเชียง'], metadata: { region: 'northeast' } },
+  { id: 'prov-ubonratchathani', answer: 'อุบลราชธานี', category: 'thailand-provinces', subcategory: 'northeast', difficulty: 'easy', hints: ['อยู่ภาคอีสาน', 'มีประเพณีแห่เทียนพรรษา', 'มีสามพันโบก', 'อยู่ติดแม่น้ำโขง'], metadata: { region: 'northeast' } },
+
+  // ภาคกลาง (22)
+  { id: 'prov-bangkok', answer: 'กรุงเทพมหานคร', category: 'thailand-provinces', subcategory: 'central', difficulty: 'easy', hints: ['เมืองหลวงของประเทศไทย', 'อยู่ภาคกลาง'], metadata: { region: 'central' } },
+  { id: 'prov-kamphaengphet', answer: 'กำแพงเพชร', category: 'thailand-provinces', subcategory: 'central', difficulty: 'hard', hints: ['อยู่ภาคกลางตอนบน', 'มีอุทยานประวัติศาสตร์กำแพงเพชร'], metadata: { region: 'central' } },
+  { id: 'prov-chainat', answer: 'ชัยนาท', category: 'thailand-provinces', subcategory: 'central', difficulty: 'hard', hints: ['อยู่ภาคกลาง', 'มีเขื่อนเจ้าพระยา'], metadata: { region: 'central' } },
+  { id: 'prov-nakhonnayok', answer: 'นครนายก', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลาง', 'มีน้ำตกและภูเขาให้เที่ยว'], metadata: { region: 'central' } },
+  { id: 'prov-nakhonpathom', answer: 'นครปฐม', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลาง', 'มีพระปฐมเจดีย์'], metadata: { region: 'central' } },
+  { id: 'prov-nakhonsawan', answer: 'นครสวรรค์', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลางตอนบน', 'เป็นจุดที่แม่น้ำสี่สายรวมกันเป็นเจ้าพระยา'], metadata: { region: 'central' } },
+  { id: 'prov-nonthaburi', answer: 'นนทบุรี', category: 'thailand-provinces', subcategory: 'central', difficulty: 'easy', hints: ['อยู่ภาคกลาง ติดกรุงเทพฯ', 'ปลูกทุเรียนนนท์'], metadata: { region: 'central' } },
+  { id: 'prov-pathumthani', answer: 'ปทุมธานี', category: 'thailand-provinces', subcategory: 'central', difficulty: 'easy', hints: ['อยู่ภาคกลาง ติดกรุงเทพฯ'], metadata: { region: 'central' } },
+  { id: 'prov-ayutthaya', answer: 'พระนครศรีอยุธยา', category: 'thailand-provinces', subcategory: 'central', difficulty: 'easy', hints: ['อยู่ภาคกลาง', 'อดีตราชธานีเก่าของไทย', 'เป็นเมืองมรดกโลก'], metadata: { region: 'central' } },
+  { id: 'prov-phichit', answer: 'พิจิตร', category: 'thailand-provinces', subcategory: 'central', difficulty: 'hard', hints: ['อยู่ภาคกลางตอนบน'], metadata: { region: 'central' } },
+  { id: 'prov-phitsanulok', answer: 'พิษณุโลก', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลางตอนบน', 'มีพระพุทธชินราช'], metadata: { region: 'central' } },
+  { id: 'prov-phetchabun', answer: 'เพชรบูรณ์', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลางตอนบน', 'มีเขาค้อ'], metadata: { region: 'central' } },
+  { id: 'prov-lopburi', answer: 'ลพบุรี', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลาง', 'ขึ้นชื่อเรื่องลิง'], metadata: { region: 'central' } },
+  { id: 'prov-samutprakan', answer: 'สมุทรปราการ', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลาง ติดกรุงเทพฯ', 'มีทางออกสู่ทะเลอ่าวไทย'], metadata: { region: 'central' } },
+  { id: 'prov-samutsongkhram', answer: 'สมุทรสงคราม (แม่กลอง)', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลาง ติดทะเล', 'มีตลาดร่มหุบ'], metadata: { region: 'central' } },
+  { id: 'prov-samutsakhon', answer: 'สมุทรสาคร', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลาง ติดทะเล', 'เป็นแหล่งประมงสำคัญ'], metadata: { region: 'central' } },
+  { id: 'prov-singburi', answer: 'สิงห์บุรี', category: 'thailand-provinces', subcategory: 'central', difficulty: 'hard', hints: ['อยู่ภาคกลาง'], metadata: { region: 'central' } },
+  { id: 'prov-sukhothai', answer: 'สุโขทัย', category: 'thailand-provinces', subcategory: 'central', difficulty: 'easy', hints: ['อยู่ภาคกลางตอนบน', 'อดีตราชธานีแห่งแรกของไทย', 'เป็นเมืองมรดกโลก'], metadata: { region: 'central' } },
+  { id: 'prov-suphanburi', answer: 'สุพรรณบุรี', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลาง'], metadata: { region: 'central' } },
+  { id: 'prov-saraburi', answer: 'สระบุรี', category: 'thailand-provinces', subcategory: 'central', difficulty: 'normal', hints: ['อยู่ภาคกลาง', 'มีพระพุทธบาท'], metadata: { region: 'central' } },
+  { id: 'prov-angthong', answer: 'อ่างทอง', category: 'thailand-provinces', subcategory: 'central', difficulty: 'hard', hints: ['อยู่ภาคกลาง'], metadata: { region: 'central' } },
+  { id: 'prov-uthaithani', answer: 'อุทัยธานี', category: 'thailand-provinces', subcategory: 'central', difficulty: 'hard', hints: ['อยู่ภาคกลางตอนบน'], metadata: { region: 'central' } },
+
+  // ภาคตะวันออก (7)
+  { id: 'prov-chanthaburi', answer: 'จันทบุรี', category: 'thailand-provinces', subcategory: 'east', difficulty: 'normal', hints: ['อยู่ภาคตะวันออก ติดทะเล', 'ขึ้นชื่อเรื่องทุเรียนและพลอย'], metadata: { region: 'east' } },
+  { id: 'prov-chachoengsao', answer: 'ฉะเชิงเทรา', category: 'thailand-provinces', subcategory: 'east', difficulty: 'normal', hints: ['อยู่ภาคตะวันออก', 'มีวัดโสธรวรารามวรวิหาร'], metadata: { region: 'east' } },
+  { id: 'prov-chonburi', answer: 'ชลบุรี', category: 'thailand-provinces', subcategory: 'east', difficulty: 'easy', hints: ['อยู่ภาคตะวันออก ติดทะเล', 'มีเมืองพัทยา'], metadata: { region: 'east' } },
+  { id: 'prov-trat', answer: 'ตราด', category: 'thailand-provinces', subcategory: 'east', difficulty: 'normal', hints: ['อยู่ภาคตะวันออกสุด ติดทะเล', 'มีเกาะช้าง'], metadata: { region: 'east' } },
+  { id: 'prov-prachinburi', answer: 'ปราจีนบุรี', category: 'thailand-provinces', subcategory: 'east', difficulty: 'hard', hints: ['อยู่ภาคตะวันออก'], metadata: { region: 'east' } },
+  { id: 'prov-rayong', answer: 'ระยอง', category: 'thailand-provinces', subcategory: 'east', difficulty: 'easy', hints: ['อยู่ภาคตะวันออก ติดทะเล', 'มีเกาะเสม็ด'], metadata: { region: 'east' } },
+  { id: 'prov-sakaeo', answer: 'สระแก้ว', category: 'thailand-provinces', subcategory: 'east', difficulty: 'hard', hints: ['อยู่ภาคตะวันออก', 'มีพรมแดนติดกัมพูชา'], metadata: { region: 'east' } },
+
+  // ภาคตะวันตก (5)
+  { id: 'prov-kanchanaburi', answer: 'กาญจนบุรี', category: 'thailand-provinces', subcategory: 'west', difficulty: 'easy', hints: ['อยู่ภาคตะวันตก', 'มีสะพานข้ามแม่น้ำแคว', 'มีพรมแดนติดเมียนมา'], metadata: { region: 'west' } },
+  { id: 'prov-tak', answer: 'ตาก', category: 'thailand-provinces', subcategory: 'west', difficulty: 'normal', hints: ['อยู่ภาคตะวันตก', 'มีอำเภอแม่สอด', 'มีพรมแดนติดเมียนมา'], metadata: { region: 'west' } },
+  { id: 'prov-prachuapkhirikhan', answer: 'ประจวบคีรีขันธ์', category: 'thailand-provinces', subcategory: 'west', difficulty: 'normal', hints: ['อยู่ภาคตะวันตก ติดทะเล', 'มีอำเภอหัวหิน'], metadata: { region: 'west' } },
+  { id: 'prov-phetchaburi', answer: 'เพชรบุรี', category: 'thailand-provinces', subcategory: 'west', difficulty: 'normal', hints: ['อยู่ภาคตะวันตก ติดทะเล', 'มีเขาวัง'], metadata: { region: 'west' } },
+  { id: 'prov-ratchaburi', answer: 'ราชบุรี', category: 'thailand-provinces', subcategory: 'west', difficulty: 'normal', hints: ['อยู่ภาคตะวันตก', 'มีตลาดน้ำดำเนินสะดวก'], metadata: { region: 'west' } },
+
+  // ภาคใต้ (14)
+  { id: 'prov-krabi', answer: 'กระบี่', category: 'thailand-provinces', subcategory: 'south', difficulty: 'easy', hints: ['อยู่ภาคใต้ ติดทะเลอันดามัน', 'มีเกาะพีพี'], metadata: { region: 'south' } },
+  { id: 'prov-chumphon', answer: 'ชุมพร', category: 'thailand-provinces', subcategory: 'south', difficulty: 'normal', hints: ['อยู่ภาคใต้ตอนบน ติดทะเล'], metadata: { region: 'south' } },
+  { id: 'prov-trang', answer: 'ตรัง', category: 'thailand-provinces', subcategory: 'south', difficulty: 'normal', hints: ['อยู่ภาคใต้ ติดทะเลอันดามัน', 'ขึ้นชื่อเรื่องหมูย่างเมืองตรัง'], metadata: { region: 'south' } },
+  { id: 'prov-nakhonsithammarat', answer: 'นครศรีธรรมราช', category: 'thailand-provinces', subcategory: 'south', difficulty: 'normal', hints: ['อยู่ภาคใต้', 'มีวัดพระมหาธาตุวรมหาวิหาร'], metadata: { region: 'south' } },
+  { id: 'prov-narathiwat', answer: 'นราธิวาส', category: 'thailand-provinces', subcategory: 'south', difficulty: 'normal', hints: ['อยู่ภาคใต้สุด', 'มีพรมแดนติดมาเลเซีย'], metadata: { region: 'south' } },
+  { id: 'prov-pattani', answer: 'ปัตตานี', category: 'thailand-provinces', subcategory: 'south', difficulty: 'normal', hints: ['อยู่ภาคใต้ ติดทะเล'], metadata: { region: 'south' } },
+  { id: 'prov-phangnga', answer: 'พังงา', category: 'thailand-provinces', subcategory: 'south', difficulty: 'normal', hints: ['อยู่ภาคใต้ ติดทะเลอันดามัน', 'มีเขาตะปู'], metadata: { region: 'south' } },
+  { id: 'prov-phatthalung', answer: 'พัทลุง', category: 'thailand-provinces', subcategory: 'south', difficulty: 'hard', hints: ['อยู่ภาคใต้', 'อยู่ริมทะเลสาบสงขลา'], metadata: { region: 'south' } },
+  { id: 'prov-phuket', answer: 'ภูเก็ต', category: 'thailand-provinces', subcategory: 'south', difficulty: 'easy', hints: ['อยู่ภาคใต้ เป็นเกาะ', 'มีหาดป่าตอง', 'เมืองท่องเที่ยวทางทะเลชื่อดัง'], metadata: { region: 'south' } },
+  { id: 'prov-yala', answer: 'ยะลา', category: 'thailand-provinces', subcategory: 'south', difficulty: 'normal', hints: ['อยู่ภาคใต้สุด', 'มีพรมแดนติดมาเลเซีย'], metadata: { region: 'south' } },
+  { id: 'prov-ranong', answer: 'ระนอง', category: 'thailand-provinces', subcategory: 'south', difficulty: 'normal', hints: ['อยู่ภาคใต้ ติดทะเลอันดามัน', 'มีพรมแดนติดเมียนมา', 'ขึ้นชื่อเรื่องบ่อน้ำแร่ร้อน'], metadata: { region: 'south' } },
+  { id: 'prov-songkhla', answer: 'สงขลา', category: 'thailand-provinces', subcategory: 'south', difficulty: 'easy', hints: ['อยู่ภาคใต้ ติดทะเล', 'มีหาดสมิหลาและรูปปั้นนางเงือก'], metadata: { region: 'south' } },
+  { id: 'prov-satun', answer: 'สตูล', category: 'thailand-provinces', subcategory: 'south', difficulty: 'normal', hints: ['อยู่ภาคใต้สุด ติดทะเลอันดามัน', 'มีพรมแดนติดมาเลเซีย'], metadata: { region: 'south' } },
+  { id: 'prov-suratthani', answer: 'สุราษฎร์ธานี', category: 'thailand-provinces', subcategory: 'south', difficulty: 'easy', hints: ['อยู่ภาคใต้ ติดทะเล', 'มีเกาะสมุยและเกาะพะงัน'], metadata: { region: 'south' } },
+]

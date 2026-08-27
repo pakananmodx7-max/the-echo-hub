@@ -1,0 +1,33 @@
+import type { WhoAmIEntry } from '../types'
+
+// Well-known Thai pop/rock songs. `answer` = song title, metadata.artist = artist/band.
+export const THAI_POP_ROCK: WhoAmIEntry[] = [
+  { id: 'music-thpr-001', answer: 'ใจดีสู้เสือ', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'easy', metadata: { artist: 'Cocktail' } },
+  { id: 'music-thpr-002', answer: 'หน้าที่ของหัวใจ', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Cocktail' } },
+  { id: 'music-thpr-003', answer: 'เพื่อนกันวันนั้น', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Bodyslam' } },
+  { id: 'music-thpr-004', answer: 'ความเชื่อ', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'easy', metadata: { artist: 'Bodyslam' } },
+  { id: 'music-thpr-005', answer: 'งมงาย', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Bodyslam' } },
+  { id: 'music-thpr-006', answer: 'ปลายทางฝัน', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Bodyslam' } },
+  { id: 'music-thpr-007', answer: 'ตะวันไม่เคยลืม', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Bodyslam' } },
+  { id: 'music-thpr-008', answer: 'ทุกอย่าง', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Getsunova' } },
+  { id: 'music-thpr-009', answer: 'ขอ', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Getsunova' } },
+  { id: 'music-thpr-010', answer: 'หากยังมีพรุ่งนี้', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'hard', metadata: { artist: 'Getsunova' } },
+  { id: 'music-thpr-011', answer: 'เธอต่างหากที่ทำให้ฉันดีขึ้น', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Three Man Down' } },
+  { id: 'music-thpr-012', answer: 'ก่อนอื่น', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Three Man Down' } },
+  { id: 'music-thpr-013', answer: 'สบายดีไหม', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Palmy' } },
+  { id: 'music-thpr-014', answer: 'แน่นอก', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Big Ass' } },
+  { id: 'music-thpr-015', answer: 'อกหักมารักกัน', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'hard', metadata: { artist: 'Big Ass' } },
+  { id: 'music-thpr-016', answer: 'บ้า', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Silly Fools' } },
+  { id: 'music-thpr-017', answer: 'ตัวจริง', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'hard', metadata: { artist: 'Silly Fools' } },
+  { id: 'music-thpr-018', answer: 'เกลียดคำว่ารักคำเดียว', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'hard', metadata: { artist: 'Clash' } },
+  { id: 'music-thpr-019', answer: 'อยากบอกเธอ', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Loso' } },
+  { id: 'music-thpr-020', answer: 'แหวนวิวาห์', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Loso' } },
+  { id: 'music-thpr-021', answer: 'หัวใจไม่มีวันหยุด', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'hard', metadata: { artist: 'Potato' } },
+  { id: 'music-thpr-022', answer: 'รักติดไซเรน', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'hard', metadata: { artist: 'Slot Machine' } },
+  { id: 'music-thpr-023', answer: 'ขอให้เธอ', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'hard', metadata: { artist: 'Klear' } },
+  { id: 'music-thpr-024', answer: 'แค่คนเดินผ่าน', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'hard', metadata: { artist: 'Scrubb' } },
+  { id: 'music-thpr-025', answer: 'แพ้ทาง', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'easy', metadata: { artist: 'Labanoon' } },
+  { id: 'music-thpr-026', answer: 'ไม่ต้องห่วงเลยแฟนเก่า', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Labanoon' } },
+  { id: 'music-thpr-027', answer: 'เพียงชายคนนี้ (ไม่ใช่ผู้วิเศษ)', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'hard', metadata: { artist: 'Bird Thongchai' } },
+  { id: 'music-thpr-028', answer: 'ลืมไม่ลง', category: 'music', subcategory: 'thai-pop-rock', difficulty: 'normal', metadata: { artist: 'Bird Thongchai' } },
+]

@@ -22,9 +22,9 @@ export function FriendBondPage() {
         </Card>
 
         <Card className="bg-gradient-to-br from-lavender-50 to-white">
-          <p className="text-lg font-semibold text-ink">🎭 Who Am I?</p>
+          <p className="text-lg font-semibold text-ink">🎭 ทายสิ...ฉันคือใคร?</p>
           <p className="mt-1 text-sm text-ink-soft">
-            เกมทายคำ ถือมือถือให้เพื่อนดูการ์ด แล้วให้เพื่อนช่วยใบ้คำตอบภายใน 60 วินาที
+            เกมทายคำหลายหมวด เล่นได้ทั้งคนเดียว ผลัดกันทาย 2–12 คน หรือแข่งกันเป็นทีม
           </p>
           <Link to="/hub/friends/who-am-i">
             <Button fullWidth variant="secondary" className="mt-4">

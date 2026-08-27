@@ -22,24 +22,6 @@ export const FRIEND_QUEST_MISSIONS: string[] = [
   'ถามเพื่อนว่า ช่วงนี้มีอะไรที่อยากให้เราเป็นกำลังใจให้ไหม?',
 ]
 
-export interface WhoAmICard {
-  label: string
-  emoji: string
-}
-
-export const WHO_AM_I_CARDS: WhoAmICard[] = [
-  { label: 'นักบินอวกาศ', emoji: '🚀' },
-  { label: 'นักสืบ', emoji: '🔎' },
-  { label: 'พ่อมด', emoji: '🪄' },
-  { label: 'นักฟุตบอล', emoji: '⚽' },
-  { label: 'เชฟ', emoji: '👨‍🍳' },
-  { label: 'นักร้อง', emoji: '🎤' },
-  { label: 'หุ่นยนต์', emoji: '🤖' },
-  { label: 'มังกร', emoji: '🐉' },
-  { label: 'แพนด้า', emoji: '🐼' },
-  { label: 'เพนกวิน', emoji: '🐧' },
-]
-
 export const SONG_SUGGESTIONS: { title: string; artist: string; note: string }[] = [
   { title: 'ใจดีสู้เสือ', artist: 'Cocktail', note: 'ให้กำลังใจในวันที่เหนื่อยล้า' },
   { title: 'เพื่อนกันวันนั้น', artist: 'Bodyslam', note: 'สำหรับเพื่อนที่อยู่ด้วยกันมานาน' },

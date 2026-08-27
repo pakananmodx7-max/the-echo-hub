@@ -17,7 +17,6 @@ import { HearSomeonePage } from './pages/hub/activities/HearSomeonePage'
 import { TalkPage } from './pages/hub/TalkPage'
 import { FriendBondPage } from './pages/hub/friends/FriendBondPage'
 import { FriendQuestPage } from './pages/hub/friends/FriendQuestPage'
-import { WhoAmIPage } from './pages/hub/friends/WhoAmIPage'
 import { ProfilePage } from './pages/hub/ProfilePage'
 import { DrawingHubPage } from './pages/hub/drawing/DrawingHubPage'
 import { EchoJournalPage } from './pages/hub/drawing/EchoJournalPage'
@@ -30,6 +29,13 @@ const EchoGardenPage = lazy(() =>
 const AvatarStudioPage = lazy(() =>
   import('./pages/hub/garden/studio/AvatarStudioPage').then((m) => ({ default: m.AvatarStudioPage })),
 )
+const WhoAmIGamePage = lazy(() =>
+  import('./pages/hub/friends/whoAmI/WhoAmIGamePage').then((m) => ({ default: m.WhoAmIGamePage })),
+)
+
+function SimpleLoadingFallback() {
+  return <div className="px-5 pt-24 text-center text-sm text-ink-soft">กำลังโหลด...</div>
+}
 
 function App() {
   return (
@@ -73,7 +79,14 @@ function App() {
               <Route path="draw/listen" element={<DrawAndListenPage />} />
               <Route path="friends" element={<FriendBondPage />} />
               <Route path="friends/quest" element={<FriendQuestPage />} />
-              <Route path="friends/who-am-i" element={<WhoAmIPage />} />
+              <Route
+                path="friends/who-am-i"
+                element={
+                  <Suspense fallback={<SimpleLoadingFallback />}>
+                    <WhoAmIGamePage />
+                  </Suspense>
+                }
+              />
               <Route path="me" element={<ProfilePage />} />
             </Route>
           </Route>
