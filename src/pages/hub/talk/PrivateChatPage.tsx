@@ -8,10 +8,24 @@ import { useChatRoomMessages } from '../../../hooks/useChatRoomMessages'
 import { useNotifications } from '../../../hooks/useNotifications'
 
 const DARK_MODE_KEY = 'echo-hub:chat-dark-mode'
+const INTRO_ACK_PREFIX = 'echo-hub:chat-intro-ack:'
 
 function readStoredDarkMode(): boolean {
   try {
     return localStorage.getItem(DARK_MODE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+// Per-session, per-device acknowledgement — deliberately local-only (no Firestore field),
+// so A and B each see the intro exactly once per NEW room id and acknowledge
+// independently; a brand new room id (created after a conversation ends, see
+// acceptRequest in privateChatBridge.ts) always reads as un-acknowledged again.
+function readIntroAck(roomId: string | undefined): boolean {
+  if (!roomId) return false
+  try {
+    return localStorage.getItem(`${INTRO_ACK_PREFIX}${roomId}`) === '1'
   } catch {
     return false
   }
@@ -37,10 +51,30 @@ export function PrivateChatPage() {
   const [navConfirmOpen, setNavConfirmOpen] = useState(false)
   const navResolveRef = useRef<((leave: boolean) => void) | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const [introAcked, setIntroAcked] = useState(() => readIntroAck(roomId))
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
   }, [messages.length])
+
+  // Re-derives on every roomId change, not just on mount — the route can hand this same
+  // component instance a different room id (e.g. navigating straight from an ended room
+  // into a freshly-accepted one) without a full remount.
+  useEffect(() => {
+    setIntroAcked(readIntroAck(roomId))
+  }, [roomId])
+
+  function handleAcknowledgeIntro() {
+    if (roomId) {
+      try {
+        localStorage.setItem(`${INTRO_ACK_PREFIX}${roomId}`, '1')
+      } catch {
+        // Best-effort persistence only — a private/blocked storage context just means the
+        // intro reappears next visit, which is harmless (never blocks chatting this time).
+      }
+    }
+    setIntroAcked(true)
+  }
 
   function toggleDarkMode() {
     setDarkMode((prev) => {
@@ -60,6 +94,10 @@ export function PrivateChatPage() {
   const partner = partnerId ? room?.profiles[partnerId] : null
   const isActive = room?.status === 'active'
   const isEnded = room?.status === 'ended'
+  // Shown once per NEW room id, independently for each participant — never for an already-
+  // ended room (nothing left to introduce), and not until the room has actually loaded.
+  const showIntro = !!room && isActive && !introAcked
+  const canChat = isActive && introAcked
 
   // Marks this room's incoming "new message" bell entries as read while it's open — the
   // user is already looking at the messages, so surfacing a separate unread badge for the
@@ -101,7 +139,7 @@ export function PrivateChatPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!text.trim() || !isActive) return
+    if (!text.trim() || !canChat) return
     const toSend = text
     setText('')
     await send(toSend)
@@ -170,6 +208,22 @@ export function PrivateChatPage() {
           </div>
         ) : null}
 
+        {canChat ? (
+          <div
+            className="mb-4 rounded-2xl px-4 py-3 text-sm leading-relaxed"
+            style={{ background: 'var(--chat-system-bg)', color: 'var(--chat-system-text)' }}
+          >
+            <p>💜 คุยกันให้เต็มที่ก่อนจบบทสนทนา</p>
+            <p className="mt-1">ออกไปหน้าอื่นได้และกลับมาคุยต่อได้</p>
+            <p className="mt-1">
+              แต่เมื่อกด &lsquo;จบการสนทนา&rsquo; ห้องนี้จะสิ้นสุด —{' '}
+              <span className="font-semibold" style={{ color: 'var(--chat-danger-text)' }}>
+                จบการสนทนา = ปิดบทสนทนาครั้งนี้
+              </span>
+            </p>
+          </div>
+        ) : null}
+
         {messages.length === 0 ? (
           <p className="mt-6 text-center text-sm" style={{ color: 'var(--chat-text-faint)' }}>
             เริ่มบทสนทนาได้เลย 🤍
@@ -211,7 +265,7 @@ export function PrivateChatPage() {
             กลับ ECHO SPACE
           </button>
         </div>
-      ) : (
+      ) : canChat ? (
         <form
           onSubmit={handleSubmit}
           className="flex items-center gap-2 border-t px-4 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
@@ -221,20 +275,19 @@ export function PrivateChatPage() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="พิมพ์ข้อความ..."
-            disabled={!isActive}
             className="min-w-0 flex-1 rounded-2xl border px-4 py-2.5 text-sm outline-none disabled:opacity-50"
             style={{ background: 'var(--chat-composer-bg)', borderColor: 'var(--chat-composer-border)', color: 'var(--chat-text)' }}
           />
           <button
             type="submit"
-            disabled={sending || !text.trim() || !isActive}
+            disabled={sending || !text.trim()}
             className="shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-50"
             style={{ background: 'var(--chat-accent)', color: 'var(--chat-accent-text)' }}
           >
             ส่ง
           </button>
         </form>
-      )}
+      ) : null}
 
       {endConfirmOpen ? (
         <div
@@ -266,6 +319,41 @@ export function PrivateChatPage() {
                 style={{ background: 'transparent', color: 'var(--chat-text-soft)' }}
               >
                 คุยต่อ
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showIntro ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center px-4 pb-4"
+          style={{ background: 'var(--chat-modal-overlay)' }}
+        >
+          <div
+            className="w-full sm:max-w-sm rounded-3xl p-6 shadow-soft animate-modal-in"
+            style={{ background: 'var(--chat-modal-bg)', color: 'var(--chat-text)' }}
+          >
+            <h2 className="text-lg font-bold">💜 ก่อนเริ่มบทสนทนา</h2>
+            <p className="mt-3 text-sm leading-relaxed whitespace-pre-line" style={{ color: 'var(--chat-text-soft)' }}>
+              {`พื้นที่นี้เป็นบทสนทนาสำหรับการพูดคุยครั้งนี้
+
+คุณสามารถออกไปหน้าอื่นและกลับมาคุยต่อได้ ตราบใดที่ยังไม่ได้กด 'จบการสนทนา'
+
+แต่เมื่อกด 'จบการสนทนา' ห้องสนทนาครั้งนี้จะสิ้นสุด และจะไม่สามารถส่งข้อความต่อในห้องเดิมได้
+
+เพราะฉะนั้น ลองให้เวลากับบทสนทนานี้
+ฟังกันให้จบ พูดกันด้วยความเข้าใจ
+และค่อยจบบทสนทนาเมื่อทั้งสองฝ่ายพร้อม 💜`}
+            </p>
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={handleAcknowledgeIntro}
+                className="w-full rounded-2xl px-5 py-3.5 font-semibold text-[15px] transition active:scale-[0.98]"
+                style={{ background: 'var(--chat-accent)', color: 'var(--chat-accent-text)' }}
+              >
+                เข้าใจแล้ว — เริ่มคุยกัน
               </button>
             </div>
           </div>
