@@ -5,6 +5,7 @@ import { Card } from '../../components/Card'
 import { Modal } from '../../components/Modal'
 import { MoodPicker } from '../../components/MoodPicker'
 import { Button } from '../../components/Button'
+import { NotificationBell } from '../../components/NotificationBell'
 import { getMoodById } from '../../data/moods'
 import { ONLINE_USERS } from '../../data/onlineUsers'
 import { gardenPresenceService } from '../../features/garden/gardenPresenceService'
@@ -54,6 +55,7 @@ export function HomePage() {
         <span className="flex items-center gap-1 text-xs font-medium text-mint-text">
           <span className="h-2 w-2 rounded-full bg-mint-deep" aria-hidden /> Online
         </span>
+        <NotificationBell />
       </div>
 
       <div className="mt-6">

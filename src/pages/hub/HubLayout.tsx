@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { BottomNav } from '../../components/BottomNav'
 import { IncomingChatRequestModal } from '../../components/IncomingChatRequestModal'
+import { SentRequestWatcher } from '../../components/SentRequestWatcher'
 import { useAuth } from '../../hooks/useAuth'
 import { usePresenceSession } from '../../features/presence/usePresenceSession'
 
@@ -15,6 +16,7 @@ export function HubLayout() {
       </div>
       <BottomNav />
       <IncomingChatRequestModal />
+      <SentRequestWatcher />
     </div>
   )
 }

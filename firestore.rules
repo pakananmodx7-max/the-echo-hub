@@ -121,6 +121,56 @@ service cloud.firestore {
       }
     }
 
+    // A notification for the Notification Center bell, owned by ownerPublicId (only they
+    // may ever read or mark it read) and describing something another account did —
+    // fromPublicId/fromCodename/fromAvatarId denormalized for display, never uid/email.
+    // Creation is tied directly to the chat-request workflow, not freely writable:
+    //  - incoming_chat_request is written by the sender right after their chatRequests
+    //    create succeeds (see sendRequest in privateChatBridge.ts) — a get() cannot see a
+    //    sibling write's not-yet-committed state for a brand new pair, so this is a
+    //    second, best-effort write rather than part of that same batch.
+    //  - chat_request_accepted / chat_request_declined are written by the receiver as
+    //    part of the SAME batch that flips the chatRequests doc to accepted/declined, so
+    //    get() below still sees its pre-batch 'pending' state, mirroring how chatRooms
+    //    creation is gated.
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource != null && myPublicId() == resource.data.ownerPublicId;
+
+      // The owner may only ever flip their own notification's `read` flag — nothing else.
+      allow update: if isSignedIn() && resource != null
+        && myPublicId() == resource.data.ownerPublicId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read == true;
+
+      allow delete: if false;
+
+      allow create: if isSignedIn()
+        && request.resource.data.fromPublicId == myPublicId()
+        && request.resource.data.ownerPublicId != myPublicId()
+        && request.resource.data.read == false
+        && request.resource.data.fromCodename is string
+        && request.resource.data.requestId == pairId(request.resource.data.fromPublicId, request.resource.data.ownerPublicId)
+        && (
+          (request.resource.data.type == 'incoming_chat_request'
+            && request.resource.data.roomId == null
+            && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.status == 'pending'
+            && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.fromPublicId == myPublicId()
+            && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.toPublicId == request.resource.data.ownerPublicId)
+          ||
+          (request.resource.data.type == 'chat_request_accepted'
+            && request.resource.data.roomId == request.resource.data.requestId
+            && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.status == 'pending'
+            && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.toPublicId == myPublicId()
+            && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.fromPublicId == request.resource.data.ownerPublicId)
+          ||
+          (request.resource.data.type == 'chat_request_declined'
+            && request.resource.data.roomId == null
+            && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.status == 'pending'
+            && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.toPublicId == myPublicId()
+            && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.fromPublicId == request.resource.data.ownerPublicId)
+        );
+    }
+
     // Everything else is closed by default — no wildcard fallback rule.
   }
 }

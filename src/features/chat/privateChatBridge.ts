@@ -7,6 +7,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -71,13 +72,29 @@ export interface ChatMessage {
   createdAtMs: number | null
 }
 
+export type NotificationType = 'incoming_chat_request' | 'chat_request_accepted' | 'chat_request_declined'
+
+export interface ChatNotification {
+  id: string
+  type: NotificationType
+  ownerPublicId: string
+  fromPublicId: string
+  fromCodename: string
+  fromAvatarId: string | null
+  requestId: string
+  roomId: string | null
+  read: boolean
+  createdAtMs: number | null
+}
+
 /**
- * The single entry point for everything related to "ask to talk privately" and the
- * resulting private chat — ECHO SPACE, ECHO GARDEN's avatar interactions, and the
- * Private Bench all call `sendRequest` instead of each rolling their own logic.
- * Interface-first so a `FirebasePrivateChatBridge` can back real Firestore-backed
- * requests/rooms/messages while `NoopPrivateChatBridge` keeps the app usable before a
- * Firebase project is wired up, exactly like every other Phase 2 service.
+ * The single entry point for everything related to "ask to talk privately", the
+ * resulting private chat, and the Notification Center — ECHO SPACE, ECHO GARDEN's avatar
+ * interactions, and the Private Bench all call `sendRequest` instead of each rolling
+ * their own logic. Interface-first so a `FirebasePrivateChatBridge` can back real
+ * Firestore-backed requests/rooms/messages/notifications while `NoopPrivateChatBridge`
+ * keeps the app usable before a Firebase project is wired up, exactly like every other
+ * Phase 2 service.
  */
 export interface PrivateChatBridge {
   sendRequest(from: ChatParticipant, to: ChatParticipant): Promise<void>
@@ -89,6 +106,9 @@ export interface PrivateChatBridge {
   subscribeRoom(roomId: string, callback: (room: ChatRoomRecord | null) => void): () => void
   subscribeRoomMessages(roomId: string, callback: (messages: ChatMessage[]) => void): () => void
   sendMessage(roomId: string, senderPublicId: string, text: string): Promise<void>
+  subscribeNotifications(publicId: string, callback: (notifications: ChatNotification[]) => void): () => void
+  markNotificationRead(notificationId: string): Promise<void>
+  markAllNotificationsRead(notificationIds: string[]): Promise<void>
 }
 
 /** Deterministic id for the (unordered) pair of two publicIds — mirrors firestore.rules pairId(). */
@@ -116,6 +136,42 @@ function toRequestRecord(snap: QueryDocumentSnapshot<DocumentData>): ChatRequest
     roomId: data.roomId ?? null,
     createdAtMs: toMillis(data.createdAt),
     updatedAtMs: toMillis(data.updatedAt),
+  }
+}
+
+/**
+ * Finds the receiver's own still-unread `incoming_chat_request` notification(s) for this
+ * request, so accepting/declining it (from the popup OR the Notification Center) clears
+ * the matching bell entry too instead of leaving a stale actionable-looking card behind.
+ * Filters client-side on a single-equality query so it needs no extra composite index.
+ */
+async function findStaleIncomingNotificationIds(
+  db: ReturnType<typeof getFirebaseFirestore>,
+  ownerPublicId: string,
+  requestId: string,
+): Promise<string[]> {
+  const snap = await getDocs(query(collection(db, 'notifications'), where('ownerPublicId', '==', ownerPublicId)))
+  return snap.docs
+    .filter((d) => {
+      const data = d.data()
+      return data.type === 'incoming_chat_request' && data.requestId === requestId && data.read === false
+    })
+    .map((d) => d.id)
+}
+
+function toNotificationRecord(snap: QueryDocumentSnapshot<DocumentData>): ChatNotification {
+  const data = snap.data()
+  return {
+    id: snap.id,
+    type: data.type,
+    ownerPublicId: data.ownerPublicId,
+    fromPublicId: data.fromPublicId,
+    fromCodename: data.fromCodename,
+    fromAvatarId: data.fromAvatarId ?? null,
+    requestId: data.requestId,
+    roomId: data.roomId ?? null,
+    read: !!data.read,
+    createdAtMs: toMillis(data.createdAt),
   }
 }
 
@@ -153,6 +209,28 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
       }
       throw err
     }
+
+    // Best-effort, separate write: the notifications create rule needs to read the
+    // chatRequests doc above via get() to confirm it's legitimate, which only sees state
+    // committed BEFORE this call started — so it can't be batched with the create above
+    // for a brand-new pair. A failure here must never fail sendRequest itself; the
+    // realtime popup (driven directly off chatRequests) is the primary, already-proven
+    // notification path — this is purely an additional convenience.
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        type: 'incoming_chat_request' satisfies NotificationType,
+        ownerPublicId: to.publicId,
+        fromPublicId: from.publicId,
+        fromCodename: from.codename,
+        fromAvatarId: from.avatarId,
+        requestId: id,
+        roomId: null,
+        read: false,
+        createdAt: serverTimestamp(),
+      })
+    } catch (err) {
+      console.error('[chat] incoming_chat_request notification write failed', err)
+    }
   }
 
   async cancelRequest(requestId: string): Promise<void> {
@@ -173,8 +251,11 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
 
     const roomId = requestId
     const roomRef = doc(db, 'chatRooms', roomId)
+    const notificationRef = doc(collection(db, 'notifications'))
+    const staleIds = await findStaleIncomingNotificationIds(db, data.toPublicId, requestId)
     const batch = writeBatch(db)
     batch.update(reqRef, { status: 'accepted', roomId, updatedAt: serverTimestamp() })
+    for (const id of staleIds) batch.update(doc(db, 'notifications', id), { read: true })
     batch.set(roomRef, {
       participants: [data.fromPublicId, data.toPublicId],
       profiles: {
@@ -184,17 +265,48 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
       requestId,
       createdAt: serverTimestamp(),
     })
+    // Notifies the original sender that their request was accepted — created here, in
+    // the same atomic batch as the accept + room creation, so it can never exist without
+    // a real accepted request/room behind it.
+    batch.set(notificationRef, {
+      type: 'chat_request_accepted' satisfies NotificationType,
+      ownerPublicId: data.fromPublicId,
+      fromPublicId: data.toPublicId,
+      fromCodename: data.toCodename,
+      fromAvatarId: data.toAvatarId ?? null,
+      requestId,
+      roomId,
+      read: false,
+      createdAt: serverTimestamp(),
+    })
     await batch.commit()
     return roomId
   }
 
   async declineRequest(requestId: string): Promise<void> {
     const db = getFirebaseFirestore()
-    await updateDoc(doc(db, 'chatRequests', requestId), {
-      status: 'declined',
+    const reqRef = doc(db, 'chatRequests', requestId)
+    const snap = await getDoc(reqRef)
+    if (!snap.exists()) throw new Error('ไม่พบคำขอนี้แล้ว')
+    const data = snap.data()
+
+    const notificationRef = doc(collection(db, 'notifications'))
+    const staleIds = await findStaleIncomingNotificationIds(db, data.toPublicId, requestId)
+    const batch = writeBatch(db)
+    batch.update(reqRef, { status: 'declined', roomId: null, updatedAt: serverTimestamp() })
+    for (const id of staleIds) batch.update(doc(db, 'notifications', id), { read: true })
+    batch.set(notificationRef, {
+      type: 'chat_request_declined' satisfies NotificationType,
+      ownerPublicId: data.fromPublicId,
+      fromPublicId: data.toPublicId,
+      fromCodename: data.toCodename,
+      fromAvatarId: data.toAvatarId ?? null,
+      requestId,
       roomId: null,
-      updatedAt: serverTimestamp(),
+      read: false,
+      createdAt: serverTimestamp(),
     })
+    await batch.commit()
   }
 
   subscribeIncomingRequests(publicId: string, callback: (requests: ChatRequestRecord[]) => void): () => void {
@@ -276,6 +388,35 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
       createdAt: serverTimestamp(),
     })
   }
+
+  subscribeNotifications(publicId: string, callback: (notifications: ChatNotification[]) => void): () => void {
+    const db = getFirebaseFirestore()
+    const q = query(
+      collection(db, 'notifications'),
+      where('ownerPublicId', '==', publicId),
+      orderBy('createdAt', 'desc'),
+    )
+    return onSnapshot(
+      q,
+      (snap) => callback(snap.docs.map(toNotificationRecord)),
+      (err) => console.error('[chat] subscribeNotifications failed', err),
+    )
+  }
+
+  async markNotificationRead(notificationId: string): Promise<void> {
+    const db = getFirebaseFirestore()
+    await updateDoc(doc(db, 'notifications', notificationId), { read: true })
+  }
+
+  async markAllNotificationsRead(notificationIds: string[]): Promise<void> {
+    if (notificationIds.length === 0) return
+    const db = getFirebaseFirestore()
+    const batch = writeBatch(db)
+    for (const id of notificationIds) {
+      batch.update(doc(db, 'notifications', id), { read: true })
+    }
+    await batch.commit()
+  }
 }
 
 class NoopPrivateChatBridge implements PrivateChatBridge {
@@ -302,6 +443,12 @@ class NoopPrivateChatBridge implements PrivateChatBridge {
     return () => {}
   }
   async sendMessage(): Promise<void> {}
+  subscribeNotifications(_publicId: string, callback: (notifications: ChatNotification[]) => void): () => void {
+    callback([])
+    return () => {}
+  }
+  async markNotificationRead(): Promise<void> {}
+  async markAllNotificationsRead(): Promise<void> {}
 }
 
 // Without a configured Firebase project there is no other real device to accept a

@@ -15,6 +15,7 @@ import { SendSongPage } from './pages/hub/activities/SendSongPage'
 import { SayItTodayPage } from './pages/hub/activities/SayItTodayPage'
 import { HearSomeonePage } from './pages/hub/activities/HearSomeonePage'
 import { TalkPage } from './pages/hub/TalkPage'
+import { NotificationsPage } from './pages/hub/NotificationsPage'
 import { ChatRequestsPage } from './pages/hub/talk/ChatRequestsPage'
 import { PrivateChatPage } from './pages/hub/talk/PrivateChatPage'
 import { FriendBondPage } from './pages/hub/friends/FriendBondPage'
@@ -54,6 +55,7 @@ function App() {
           <Route element={<RequireOnboarding />}>
             <Route path="/hub" element={<HubLayout />}>
               <Route index element={<HomePage />} />
+              <Route path="notifications" element={<NotificationsPage />} />
               <Route path="space" element={<EchoSpacePage />} />
               <Route path="activities" element={<ActivitiesPage />} />
               <Route path="activities/send-song" element={<SendSongPage />} />
