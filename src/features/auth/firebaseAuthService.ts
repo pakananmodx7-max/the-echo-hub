@@ -33,8 +33,12 @@ function toAuthUser(fbUser: FirebaseUser, docData: UserDoc): AuthUser {
     codename: docData.codename,
     avatarId: docData.avatarId,
     mood: docData.mood,
-    onboardingComplete: docData.onboardingComplete,
-    completedActivityIds: docData.completedActivityIds,
+    // Defaults guard against an existing production users/{uid} doc that predates a field
+    // (e.g. completedActivityIds added after some accounts were already created) — without
+    // this, `.length`/`.includes()` call sites throughout the app would crash outright on
+    // an unexpectedly undefined value instead of just treating it as "not set yet".
+    onboardingComplete: docData.onboardingComplete ?? false,
+    completedActivityIds: docData.completedActivityIds ?? [],
     createdAt: docData.createdAt,
   }
 }

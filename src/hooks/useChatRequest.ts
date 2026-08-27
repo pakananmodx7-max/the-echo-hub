@@ -37,7 +37,15 @@ export function useChatRequest() {
   }
 
   async function confirm() {
-    if (!target || !user?.publicId || !user.codename) return
+    if (!target) return
+    if (!user?.publicId || !user.codename) {
+      console.error('[chat] confirm blocked: current user profile incomplete', {
+        hasPublicId: !!user?.publicId,
+        hasCodename: !!user?.codename,
+      })
+      setError('โปรไฟล์ของคุณยังโหลดไม่สมบูรณ์ กรุณาลองใหม่อีกครั้ง')
+      return
+    }
     setSending(true)
     setError(null)
     try {

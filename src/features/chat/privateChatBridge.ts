@@ -17,7 +17,7 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore'
-import { firebaseConfigured, getFirebaseFirestore } from '../../lib/firebase'
+import { firebaseConfigured, getFirebaseAuth, getFirebaseFirestore } from '../../lib/firebase'
 import type { MoodId } from '../../types'
 
 export type ChatRequestStatus = 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired'
@@ -178,6 +178,40 @@ function toNotificationRecord(snap: QueryDocumentSnapshot<DocumentData>): ChatNo
 class FirebasePrivateChatBridge implements PrivateChatBridge {
   async sendRequest(from: ChatParticipant, to: ChatParticipant): Promise<void> {
     const db = getFirebaseFirestore()
+
+    // Prerequisite check, before ever touching chatRequests: the create rule requires
+    // `fromPublicId` to equal `myPublicId()` (read fresh from users/{uid}.publicId on the
+    // server). Log which piece is missing — publicId is the intentionally-shareable id,
+    // never uid/email — so a real gap is visible in the console instead of surfacing only
+    // as an opaque "Missing or insufficient permissions." from Firestore.
+    if (!from.publicId || !to.publicId) {
+      console.error('[chat] sendRequest blocked before write: incomplete participant data', {
+        hasFromPublicId: !!from.publicId,
+        hasToPublicId: !!to.publicId,
+      })
+      throw new Error('โปรไฟล์ของคุณยังโหลดไม่สมบูรณ์ กรุณาลองใหม่อีกครั้ง')
+    }
+
+    // Self-diagnosing: confirm the publicId we're about to send as `fromPublicId` still
+    // matches what's canonically stored on our own account right now. This is the one
+    // prerequisite mismatch that would make the rules' `fromPublicId == myPublicId()`
+    // check fail even though the write looks correct client-side (e.g. a stale cached
+    // profile after switching accounts) — and this read is always self-permitted, so it
+    // can never itself throw permission-denied the way the chatRequests write can.
+    const authUid = getFirebaseAuth().currentUser?.uid
+    if (authUid) {
+      const ownSnap = await getDoc(doc(db, 'users', authUid))
+      const canonicalPublicId = ownSnap.exists() ? (ownSnap.data().publicId as string | undefined) : undefined
+      if (canonicalPublicId !== from.publicId) {
+        console.error('[chat] sendRequest blocked: own publicId is stale vs. users/{uid}', {
+          ownUserDocExists: ownSnap.exists(),
+          ownUserDocHasPublicId: !!canonicalPublicId,
+          publicIdsMatch: canonicalPublicId === from.publicId,
+        })
+        throw new Error('โปรไฟล์ไม่ตรงกัน กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่')
+      }
+    }
+
     const id = pairId(from.publicId, to.publicId)
     const ref = doc(db, 'chatRequests', id)
 
@@ -196,16 +230,40 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
       updatedAt: serverTimestamp(),
     }
 
-    // No pre-read needed: firestore.rules already routes this write to its `create` rule
-    // for a brand-new pair or its `update` (re-open) rule for a finished one, and denies
-    // it outright — surfaced here as a friendly message — while a request is still
-    // pending or accepted. Reading first would need read access to a doc that may not
-    // exist yet, which the rules correctly refuse to grant.
+    // No pre-read needed for the happy path: firestore.rules already routes this write to
+    // its `create` rule for a brand-new pair or its `update` (re-open) rule for a finished
+    // one. On denial we do one follow-up read (see below) purely to log which case this
+    // was — it can never widen what the rules themselves allow.
     try {
       await setDoc(ref, payload)
     } catch (err) {
-      if (err instanceof FirestoreError && err.code === 'permission-denied') {
-        throw new Error('มีคำขอที่ยังไม่ได้ตอบรับอยู่แล้ว')
+      const code = err instanceof FirestoreError ? err.code : 'unknown'
+      console.error('[chat] sendRequest write denied', {
+        code,
+        message: err instanceof Error ? err.message : String(err),
+        requestId: id,
+      })
+
+      if (code === 'permission-denied') {
+        try {
+          const existing = await getDoc(ref)
+          const existingStatus = existing.exists() ? (existing.data().status as string | undefined) : null
+          if (existingStatus === 'pending' || existingStatus === 'accepted') {
+            throw new Error('มีคำขอที่ยังไม่ได้ตอบรับอยู่แล้ว')
+          }
+          // Ruled out "a live request already exists" — the follow-up read itself succeeded
+          // (so read access and the prerequisite profile fields are fine), meaning the
+          // create was denied for some other reason — most likely the live Firestore rules
+          // don't yet match firestore.rules in this repo. Surfaced here, not in the UI.
+          console.error('[chat] sendRequest denied for a reason other than an existing pending/accepted request', {
+            existingDocExists: existing.exists(),
+            existingStatus,
+          })
+        } catch (readErr) {
+          if (readErr instanceof Error && readErr.message === 'มีคำขอที่ยังไม่ได้ตอบรับอยู่แล้ว') throw readErr
+          console.error('[chat] sendRequest follow-up read also failed', readErr)
+        }
+        throw new Error('ส่งคำขอไม่สำเร็จ ลองใหม่อีกครั้ง')
       }
       throw err
     }
