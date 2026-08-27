@@ -15,6 +15,8 @@ import { SendSongPage } from './pages/hub/activities/SendSongPage'
 import { SayItTodayPage } from './pages/hub/activities/SayItTodayPage'
 import { HearSomeonePage } from './pages/hub/activities/HearSomeonePage'
 import { TalkPage } from './pages/hub/TalkPage'
+import { ChatRequestsPage } from './pages/hub/talk/ChatRequestsPage'
+import { PrivateChatPage } from './pages/hub/talk/PrivateChatPage'
 import { FriendBondPage } from './pages/hub/friends/FriendBondPage'
 import { FriendQuestPage } from './pages/hub/friends/FriendQuestPage'
 import { ProfilePage } from './pages/hub/ProfilePage'
@@ -58,6 +60,8 @@ function App() {
               <Route path="activities/say-it-today" element={<SayItTodayPage />} />
               <Route path="activities/hear-someone" element={<HearSomeonePage />} />
               <Route path="talk" element={<TalkPage />} />
+              <Route path="talk/requests" element={<ChatRequestsPage />} />
+              <Route path="talk/chat/:roomId" element={<PrivateChatPage />} />
               <Route
                 path="garden"
                 element={

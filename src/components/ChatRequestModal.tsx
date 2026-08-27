@@ -12,7 +12,7 @@ interface ChatRequestModalProps {
  * Private Bench all render this same component via `useChatRequest()`.
  */
 export function ChatRequestModal({ chatRequest }: ChatRequestModalProps) {
-  const { target, cancel, confirm, sending, isTargetSent } = chatRequest
+  const { target, cancel, confirm, sending, isTargetSent, error } = chatRequest
 
   return (
     <Modal open={!!target} onClose={cancel}>
@@ -33,6 +33,7 @@ export function ChatRequestModal({ chatRequest }: ChatRequestModalProps) {
             <p className="mt-2 text-sm leading-relaxed text-ink-soft">
               "อีกฝ่ายจะเป็นคนเลือกว่าจะรับคำขอหรือไม่"
             </p>
+            {error ? <p className="mt-3 text-sm text-pink-text">{error}</p> : null}
             <div className="mt-5 flex flex-col gap-2.5">
               <Button fullWidth onClick={confirm} disabled={sending}>
                 ส่งคำขอ 🤍

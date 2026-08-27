@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '../../components/PageHeader'
 import { Card } from '../../components/Card'
 import { Modal } from '../../components/Modal'
 import { Button } from '../../components/Button'
+import { useIncomingChatRequests } from '../../hooks/useIncomingChatRequests'
 
 interface TalkOption {
   id: string
@@ -37,7 +39,9 @@ const OPTIONS: TalkOption[] = [
 ]
 
 export function TalkPage() {
+  const navigate = useNavigate()
   const [active, setActive] = useState<TalkOption | null>(null)
+  const { requests } = useIncomingChatRequests()
 
   return (
     <div>
@@ -49,6 +53,25 @@ export function TalkPage() {
         </p>
 
         <div className="mt-5 flex flex-col gap-3">
+          <Card
+            onClick={() => navigate('/hub/talk/requests')}
+            className="cursor-pointer border border-lavender-100 bg-white/90 transition hover:shadow-soft"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-3xl" aria-hidden>
+                💌
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-ink">คำขอคุยที่ค้างอยู่</p>
+                <p className="mt-0.5 text-sm text-ink-soft">
+                  {requests.length > 0 ? `มีคำขอใหม่ ${requests.length} รายการ` : 'ดูคำขอที่คุณส่งและได้รับ'}
+                </p>
+              </div>
+              <span className="text-ink-faint" aria-hidden>
+                ›
+              </span>
+            </div>
+          </Card>
           {OPTIONS.map((option) => (
             <Card
               key={option.id}
