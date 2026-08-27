@@ -1,6 +1,8 @@
 import { Outlet } from 'react-router-dom'
+import { ActiveChatReminderBanner } from '../../components/ActiveChatReminderBanner'
 import { BottomNav } from '../../components/BottomNav'
 import { IncomingChatRequestModal } from '../../components/IncomingChatRequestModal'
+import { NewMessageToast } from '../../components/NewMessageToast'
 import { SentRequestWatcher } from '../../components/SentRequestWatcher'
 import { useAuth } from '../../hooks/useAuth'
 import { usePresenceSession } from '../../features/presence/usePresenceSession'
@@ -17,6 +19,8 @@ export function HubLayout() {
       <BottomNav />
       <IncomingChatRequestModal />
       <SentRequestWatcher />
+      <ActiveChatReminderBanner />
+      <NewMessageToast />
     </div>
   )
 }

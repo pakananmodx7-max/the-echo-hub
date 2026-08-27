@@ -9,6 +9,8 @@ export function notificationText(n: ChatNotification): string {
       return `${n.fromCodename} รับคำขอคุยของคุณแล้ว`
     case 'chat_request_declined':
       return `${n.fromCodename} ยังไม่สะดวกคุยตอนนี้`
+    case 'new_message':
+      return `💬 ${n.fromCodename} ส่งข้อความใหม่ถึงคุณ`
     default:
       return ''
   }

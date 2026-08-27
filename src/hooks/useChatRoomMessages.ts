@@ -36,5 +36,10 @@ export function useChatRoomMessages(roomId: string | undefined) {
     }
   }
 
-  return { room, messages, send, sending }
+  async function end() {
+    if (!roomId || !user?.publicId) return
+    await privateChatBridge.endConversation(roomId, user.publicId)
+  }
+
+  return { room, messages, send, sending, end }
 }

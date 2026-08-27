@@ -1,56 +1,179 @@
 import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Avatar } from '../../../components/Avatar'
+import { confirmLeavingActiveChat, registerActiveChatGuard } from '../../../features/chat/activeChatNavGuard'
 import { useAuth } from '../../../hooks/useAuth'
 import { useChatRoomMessages } from '../../../hooks/useChatRoomMessages'
+import { useNotifications } from '../../../hooks/useNotifications'
+
+const DARK_MODE_KEY = 'echo-hub:chat-dark-mode'
+
+function readStoredDarkMode(): boolean {
+  try {
+    return localStorage.getItem(DARK_MODE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 
 /**
  * The private 1:1 chat thread opened once a chat request is accepted. Only the two
  * room participants can ever reach real messages here — enforced by firestore.rules,
  * not just this UI. No voice/video/file upload and no AI analysis of messages, by design.
+ * Visually scoped under `.chat-scope`/`.chat-dark` (see index.css) so the dark mode
+ * toggle here never affects the rest of THE ECHO HUB.
  */
 export function PrivateChatPage() {
   const { roomId } = useParams<{ roomId: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { room, messages, send, sending } = useChatRoomMessages(roomId)
+  const { room, messages, send, sending, end } = useChatRoomMessages(roomId)
+  const { notifications, markRead } = useNotifications()
   const [text, setText] = useState('')
+  const [darkMode, setDarkMode] = useState(readStoredDarkMode)
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false)
+  const [ending, setEnding] = useState(false)
+  const [navConfirmOpen, setNavConfirmOpen] = useState(false)
+  const navResolveRef = useRef<((leave: boolean) => void) | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
   }, [messages.length])
 
+  function toggleDarkMode() {
+    setDarkMode((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(DARK_MODE_KEY, next ? '1' : '0')
+      } catch {
+        // Best-effort persistence only — a private/blocked storage context just means the
+        // toggle resets next visit, which is harmless.
+      }
+      return next
+    })
+  }
+
   const myPublicId = user?.publicId ?? null
   const partnerId = room?.participants.find((id) => id !== myPublicId) ?? null
   const partner = partnerId ? room?.profiles[partnerId] : null
+  const isActive = room?.status === 'active'
+  const isEnded = room?.status === 'ended'
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Marks this room's incoming "new message" bell entries as read while it's open — the
+  // user is already looking at the messages, so surfacing a separate unread badge for the
+  // same room would be a duplicate notification (see requirement to avoid that).
+  useEffect(() => {
+    if (!roomId) return
+    const unreadForThisRoom = notifications.filter((n) => n.type === 'new_message' && n.roomId === roomId && !n.read)
+    for (const n of unreadForThisRoom) void markRead(n.id)
+  }, [roomId, notifications, markRead])
+
+  // Registers with BottomNav so pressing a nav tab while this active chat is open can
+  // offer a gentle "you can come back later" choice instead of silently vanishing — never
+  // forces the user to stay, and only applies while the room is genuinely still active.
+  useEffect(() => {
+    if (!isActive) return
+    return registerActiveChatGuard(
+      () =>
+        new Promise<boolean>((resolve) => {
+          navResolveRef.current = resolve
+          setNavConfirmOpen(true)
+        }),
+    )
+  }, [isActive])
+
+  function resolveNavConfirm(leave: boolean) {
+    setNavConfirmOpen(false)
+    navResolveRef.current?.(leave)
+    navResolveRef.current = null
+  }
+
+  // The chat's own back arrow is the actual reachable "leave" affordance while the chat's
+  // full-screen overlay is open (it covers BottomNav, same as Garden's full-screen pages)
+  // — routes through the same guard BottomNav would use elsewhere, so it asks exactly
+  // once, never blocks, and reuses the very same confirm dialog.
+  async function handleBack() {
+    const ok = await confirmLeavingActiveChat()
+    if (ok) navigate('/hub/talk')
+  }
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!text.trim()) return
+    if (!text.trim() || !isActive) return
     const toSend = text
     setText('')
     await send(toSend)
   }
 
+  async function handleConfirmEnd() {
+    setEnding(true)
+    try {
+      await end()
+    } finally {
+      setEnding(false)
+      setEndConfirmOpen(false)
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-cream">
-      <div className="flex items-center gap-3 border-b border-lavender-100 px-4 py-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
+    <div
+      className={`chat-scope ${darkMode ? 'chat-dark' : ''} fixed inset-0 z-50 flex flex-col`}
+      style={{ background: 'var(--chat-bg)', color: 'var(--chat-text)' }}
+    >
+      <div
+        className="flex items-center gap-3 border-b px-4 py-3 pt-[max(env(safe-area-inset-top),0.75rem)]"
+        style={{ background: 'var(--chat-header-bg)', borderColor: 'var(--chat-border)' }}
+      >
         <button
           type="button"
-          onClick={() => navigate('/hub/talk')}
+          onClick={handleBack}
           aria-label="ย้อนกลับ"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white shadow-card text-ink-soft active:scale-95 transition"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm active:scale-95 transition"
+          style={{ background: 'var(--chat-bubble-in-bg)', color: 'var(--chat-text-soft)' }}
         >
           ←
         </button>
         <Avatar avatarId={partner?.avatarId ?? null} size="sm" />
-        <p className="min-w-0 flex-1 truncate font-semibold text-ink">{partner?.codename ?? 'แชทส่วนตัว'}</p>
+        <p className="min-w-0 flex-1 truncate font-semibold" style={{ color: 'var(--chat-text)' }}>
+          {partner?.codename ?? 'แชทส่วนตัว'}
+        </p>
+        <button
+          type="button"
+          onClick={toggleDarkMode}
+          aria-label={darkMode ? 'สลับเป็นโหมดสว่าง' : 'สลับเป็นโหมดมืด'}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base active:scale-95 transition"
+          style={{ background: 'var(--chat-bubble-in-bg)' }}
+        >
+          <span aria-hidden>{darkMode ? '☀️' : '🌙'}</span>
+        </button>
+        {isActive ? (
+          <button
+            type="button"
+            onClick={() => setEndConfirmOpen(true)}
+            className="shrink-0 rounded-full px-3 py-2 text-xs font-semibold active:scale-95 transition"
+            style={{ background: 'var(--chat-danger-bg)', color: 'var(--chat-danger-text)' }}
+          >
+            จบการสนทนา
+          </button>
+        ) : null}
       </div>
 
       <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4">
+        {isEnded ? (
+          <div
+            className="mb-4 rounded-2xl px-4 py-3 text-center text-sm"
+            style={{ background: 'var(--chat-system-bg)', color: 'var(--chat-system-text)' }}
+          >
+            การสนทนานี้จบแล้ว ขอบคุณที่รับฟังกันนะ 💜
+          </div>
+        ) : null}
+
         {messages.length === 0 ? (
-          <p className="mt-6 text-center text-sm text-ink-faint">เริ่มบทสนทนาได้เลย 🤍</p>
+          <p className="mt-6 text-center text-sm" style={{ color: 'var(--chat-text-faint)' }}>
+            เริ่มบทสนทนาได้เลย 🤍
+          </p>
         ) : (
           <div className="flex flex-col gap-2.5">
             {messages.map((m) => {
@@ -58,9 +181,12 @@ export function PrivateChatPage() {
               return (
                 <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                   <div
-                    className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                      mine ? 'bg-lavender-500 text-white' : 'bg-white text-ink shadow-card'
-                    }`}
+                    className="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                    style={{
+                      background: mine ? 'var(--chat-bubble-out-bg)' : 'var(--chat-bubble-in-bg)',
+                      color: mine ? 'var(--chat-bubble-out-text)' : 'var(--chat-bubble-in-text)',
+                      boxShadow: mine ? 'none' : 'var(--chat-bubble-in-shadow)',
+                    }}
                   >
                     {m.text}
                   </div>
@@ -71,24 +197,114 @@ export function PrivateChatPage() {
         )}
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="flex items-center gap-2 border-t border-lavender-100 px-4 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
-      >
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="พิมพ์ข้อความ..."
-          className="min-w-0 flex-1 rounded-2xl border border-lavender-100 bg-white px-4 py-2.5 text-sm text-ink outline-none focus:border-lavender-300"
-        />
-        <button
-          type="submit"
-          disabled={sending || !text.trim()}
-          className="shrink-0 rounded-full bg-lavender-500 px-5 py-2.5 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-50"
+      {isEnded ? (
+        <div
+          className="flex flex-col gap-2.5 border-t px-4 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+          style={{ borderColor: 'var(--chat-border)' }}
         >
-          ส่ง
-        </button>
-      </form>
+          <button
+            type="button"
+            onClick={() => navigate('/hub/space')}
+            className="w-full rounded-2xl px-5 py-3 text-sm font-semibold transition active:scale-95"
+            style={{ background: 'var(--chat-accent)', color: 'var(--chat-accent-text)' }}
+          >
+            กลับ ECHO SPACE
+          </button>
+        </div>
+      ) : (
+        <form
+          onSubmit={handleSubmit}
+          className="flex items-center gap-2 border-t px-4 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+          style={{ borderColor: 'var(--chat-border)' }}
+        >
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="พิมพ์ข้อความ..."
+            disabled={!isActive}
+            className="min-w-0 flex-1 rounded-2xl border px-4 py-2.5 text-sm outline-none disabled:opacity-50"
+            style={{ background: 'var(--chat-composer-bg)', borderColor: 'var(--chat-composer-border)', color: 'var(--chat-text)' }}
+          />
+          <button
+            type="submit"
+            disabled={sending || !text.trim() || !isActive}
+            className="shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-50"
+            style={{ background: 'var(--chat-accent)', color: 'var(--chat-accent-text)' }}
+          >
+            ส่ง
+          </button>
+        </form>
+      )}
+
+      {endConfirmOpen ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center px-4 pb-4"
+          style={{ background: 'var(--chat-modal-overlay)' }}
+          onClick={() => !ending && setEndConfirmOpen(false)}
+        >
+          <div
+            className="w-full sm:max-w-sm rounded-3xl p-6 shadow-soft animate-modal-in"
+            style={{ background: 'var(--chat-modal-bg)', color: 'var(--chat-text)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold">ต้องการจบการสนทนานี้หรือไม่?</h2>
+            <div className="mt-5 flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={handleConfirmEnd}
+                disabled={ending}
+                className="w-full rounded-2xl px-5 py-3.5 font-semibold text-[15px] transition active:scale-[0.98] disabled:opacity-50"
+                style={{ background: 'var(--chat-danger-bg)', color: 'var(--chat-danger-text)' }}
+              >
+                จบการสนทนา
+              </button>
+              <button
+                type="button"
+                onClick={() => setEndConfirmOpen(false)}
+                disabled={ending}
+                className="w-full rounded-2xl px-5 py-3.5 font-semibold text-[15px] transition active:scale-[0.98] disabled:opacity-50"
+                style={{ background: 'transparent', color: 'var(--chat-text-soft)' }}
+              >
+                คุยต่อ
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {navConfirmOpen ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center px-4 pb-4"
+          style={{ background: 'var(--chat-modal-overlay)' }}
+          onClick={() => resolveNavConfirm(false)}
+        >
+          <div
+            className="w-full sm:max-w-sm rounded-3xl p-6 shadow-soft animate-modal-in"
+            style={{ background: 'var(--chat-modal-bg)', color: 'var(--chat-text)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm leading-relaxed">การสนทนายังไม่จบ คุณสามารถกลับมาคุยต่อได้ภายหลัง</p>
+            <div className="mt-5 flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={() => resolveNavConfirm(true)}
+                className="w-full rounded-2xl px-5 py-3.5 font-semibold text-[15px] transition active:scale-[0.98]"
+                style={{ background: 'var(--chat-accent)', color: 'var(--chat-accent-text)' }}
+              >
+                ออกไปก่อน
+              </button>
+              <button
+                type="button"
+                onClick={() => resolveNavConfirm(false)}
+                className="w-full rounded-2xl px-5 py-3.5 font-semibold text-[15px] transition active:scale-[0.98]"
+                style={{ background: 'transparent', color: 'var(--chat-text-soft)' }}
+              >
+                อยู่ต่อ
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

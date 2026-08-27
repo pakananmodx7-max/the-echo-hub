@@ -32,6 +32,58 @@ html {
   color-scheme: light;
 }
 
+/* Private-chat-only theme. Scoped to `.chat-scope` (PrivateChatPage's own root) so it
+   never affects the rest of THE ECHO HUB — light values match the app's normal palette;
+   `.chat-dark` overrides keep the same warm/lavender identity rather than going pure
+   black. Toggled client-side and persisted per-device; see PrivateChatPage.tsx. */
+.chat-scope {
+  --chat-bg: var(--color-cream);
+  --chat-header-bg: color-mix(in srgb, var(--color-cream) 90%, transparent);
+  --chat-border: var(--color-lavender-100);
+  --chat-text: var(--color-ink);
+  --chat-text-soft: var(--color-ink-soft);
+  --chat-text-faint: var(--color-ink-faint);
+  --chat-bubble-out-bg: var(--color-lavender-500);
+  --chat-bubble-out-text: #ffffff;
+  --chat-bubble-in-bg: #ffffff;
+  --chat-bubble-in-text: var(--color-ink);
+  --chat-bubble-in-shadow: var(--shadow-card);
+  --chat-composer-bg: #ffffff;
+  --chat-composer-border: var(--color-lavender-100);
+  --chat-system-bg: var(--color-lavender-50);
+  --chat-system-text: var(--color-ink-soft);
+  --chat-modal-bg: #ffffff;
+  --chat-modal-overlay: rgba(58, 50, 69, 0.4);
+  --chat-accent: var(--color-lavender-500);
+  --chat-accent-text: #ffffff;
+  --chat-danger-bg: var(--color-pink-glow);
+  --chat-danger-text: var(--color-pink-text);
+}
+
+.chat-scope.chat-dark {
+  --chat-bg: #241f30;
+  --chat-header-bg: rgba(36, 31, 48, 0.92);
+  --chat-border: #3c3350;
+  --chat-text: #f6efe4;
+  --chat-text-soft: #cabfe0;
+  --chat-text-faint: #948aa8;
+  --chat-bubble-out-bg: #7a63b8;
+  --chat-bubble-out-text: #f8f4ff;
+  --chat-bubble-in-bg: #322a42;
+  --chat-bubble-in-text: #f0e9f7;
+  --chat-bubble-in-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.4);
+  --chat-composer-bg: #2c2438;
+  --chat-composer-border: #3c3350;
+  --chat-system-bg: #322a42;
+  --chat-system-text: #cabfe0;
+  --chat-modal-bg: #2c2438;
+  --chat-modal-overlay: rgba(10, 8, 16, 0.6);
+  --chat-accent: #b98fd1;
+  --chat-accent-text: #241f30;
+  --chat-danger-bg: #4a2e42;
+  --chat-danger-text: #ffb3d1;
+}
+
 body {
   margin: 0;
   background: var(--color-cream);

@@ -14,8 +14,9 @@ service cloud.firestore {
     }
 
     // Deterministic id for the (unordered) pair of two publicIds — used as the document
-    // id for both a chat request and its resulting room, so there can only ever be one
-    // live request/room between any two accounts at a time.
+    // id for a chat request, so there can only ever be one *live* request between any two
+    // accounts at a time. Chat rooms are NOT keyed this way (see chatRooms below) so that
+    // ending one conversation never blocks a later, brand-new session between the same pair.
     function pairId(a, b) {
       return a < b ? a + '_' + b : b + '_' + a;
     }
@@ -38,10 +39,12 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.publicId == publicId;
     }
 
-    // A pending/accepted/declined/cancelled "may we chat privately" request between two
-    // accounts, keyed by pairId(fromPublicId, toPublicId) so at most one live request can
-    // exist between any two people. Sender/receiver codename+avatar+mood are denormalized
-    // in at send-time purely for display — never the uid or email.
+    // A pending/accepted/declined/cancelled/expired "may we chat privately" request
+    // between two accounts, keyed by pairId(fromPublicId, toPublicId) so at most one live
+    // request can exist between any two people. Sender/receiver codename+avatar+mood are
+    // denormalized in at send-time purely for display — never the uid or email. `roomId`
+    // points at the CURRENT/latest chatRooms session (see below); once that room is ended
+    // this doc is flipped to 'expired' so the same pair can start a fresh session later.
     match /chatRequests/{requestId} {
       allow read: if isSignedIn() && resource != null
         && (myPublicId() == resource.data.fromPublicId || myPublicId() == resource.data.toPublicId);
@@ -55,14 +58,17 @@ service cloud.firestore {
         && request.resource.data.roomId == null;
 
       allow update: if isSignedIn() && (
-        // Receiver accepts or declines a pending request.
+        // Receiver accepts or declines a pending request. On accept, roomId must point at
+        // a freshly created, still-active room (verified independently by chatRooms'
+        // own create rule below) — its exact value isn't re-derivable here since chat
+        // rooms use unique per-session ids, not a value computable from this document.
         (myPublicId() == resource.data.toPublicId
           && resource.data.status == 'pending'
           && request.resource.data.fromPublicId == resource.data.fromPublicId
           && request.resource.data.toPublicId == resource.data.toPublicId
           && (
             (request.resource.data.status == 'declined' && request.resource.data.roomId == null)
-            || (request.resource.data.status == 'accepted' && request.resource.data.roomId == requestId)
+            || (request.resource.data.status == 'accepted' && request.resource.data.roomId is string)
           ))
         ||
         // Sender cancels their own still-pending request.
@@ -72,6 +78,18 @@ service cloud.firestore {
           && request.resource.data.toPublicId == resource.data.toPublicId
           && request.resource.data.status == 'cancelled'
           && request.resource.data.roomId == null)
+        ||
+        // Either participant ends their active room (see chatRooms update below, written
+        // in the SAME batch) — this flips the owning request to 'expired' so a fresh
+        // request/session between the same two people can be started later. roomId is
+        // left untouched, preserving the link to the now-ended room's history.
+        (resource.data.status == 'accepted'
+          && (myPublicId() == resource.data.fromPublicId || myPublicId() == resource.data.toPublicId)
+          && request.resource.data.fromPublicId == resource.data.fromPublicId
+          && request.resource.data.toPublicId == resource.data.toPublicId
+          && request.resource.data.roomId == resource.data.roomId
+          && request.resource.data.status == 'expired'
+          && get(/databases/$(database)/documents/chatRooms/$(resource.data.roomId)).data.status == 'active')
         ||
         // Either former party re-opens a finished request as a fresh pending one.
         (resource.data.status in ['declined', 'cancelled', 'expired']
@@ -87,30 +105,51 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // A private 1:1 chat room, created only as part of the same write that accepts its
-    // request (see acceptRequest in privateChatBridge.ts), keyed by the same pairId as
-    // the request that created it. Only the two participants may ever read it or their
-    // messages; nobody may write into a room they are not part of.
+    // A private 1:1 chat room / conversation session. Ids are unique per session (NOT the
+    // pairId) so that ending one conversation never blocks the same two people from later
+    // starting a brand-new one — old ended rooms are simply left in place, still readable
+    // by their two participants, rather than reused or deleted. Only the two participants
+    // may ever read it, its messages, or end it; nobody may write into a room they are not
+    // part of, and nobody may ever revive an ended room back to active.
     match /chatRooms/{roomId} {
       allow read: if isSignedIn() && resource != null && myPublicId() in resource.data.participants;
 
+      // Created only as part of the same batch that accepts its request (see
+      // acceptRequest in privateChatBridge.ts) — requestId (not this doc's own id) is
+      // what ties it back to a real, currently-pending request the caller is the
+      // receiver of.
       allow create: if isSignedIn()
         && request.resource.data.participants is list
         && request.resource.data.participants.size() == 2
         && myPublicId() in request.resource.data.participants
-        && roomId == pairId(request.resource.data.participants[0], request.resource.data.participants[1])
-        && request.resource.data.requestId == roomId
-        && get(/databases/$(database)/documents/chatRequests/$(roomId)).data.status == 'pending'
-        && get(/databases/$(database)/documents/chatRequests/$(roomId)).data.toPublicId == myPublicId();
+        && request.resource.data.requestId == pairId(request.resource.data.participants[0], request.resource.data.participants[1])
+        && request.resource.data.status == 'active'
+        && request.resource.data.endedAt == null
+        && request.resource.data.endedBy == null
+        && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.status == 'pending'
+        && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.toPublicId == myPublicId();
 
-      allow update: if false;
+      // The only update ever allowed: an active room's two participants, and only they,
+      // may end it — one-directional (active -> ended); an ended room can never be
+      // reactivated, and no other field may change.
+      allow update: if isSignedIn()
+        && resource != null
+        && resource.data.status == 'active'
+        && myPublicId() in resource.data.participants
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'endedAt', 'endedBy'])
+        && request.resource.data.status == 'ended'
+        && request.resource.data.endedBy == myPublicId()
+        && request.resource.data.endedAt == request.time;
+
       allow delete: if false;
 
       match /messages/{messageId} {
         allow read: if isSignedIn()
           && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
 
+        // Ended rooms reject new messages outright.
         allow create: if isSignedIn()
+          && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.status == 'active'
           && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
           && request.resource.data.senderPublicId == myPublicId()
           && request.resource.data.text is string
@@ -124,7 +163,7 @@ service cloud.firestore {
     // A notification for the Notification Center bell, owned by ownerPublicId (only they
     // may ever read or mark it read) and describing something another account did —
     // fromPublicId/fromCodename/fromAvatarId denormalized for display, never uid/email.
-    // Creation is tied directly to the chat-request workflow, not freely writable:
+    // Creation is tied directly to the chat workflow, not freely writable:
     //  - incoming_chat_request is written by the sender right after their chatRequests
     //    create succeeds (see sendRequest in privateChatBridge.ts) — a get() cannot see a
     //    sibling write's not-yet-committed state for a brand new pair, so this is a
@@ -133,6 +172,11 @@ service cloud.firestore {
     //    part of the SAME batch that flips the chatRequests doc to accepted/declined, so
     //    get() below still sees its pre-batch 'pending' state, mirroring how chatRooms
     //    creation is gated.
+    //  - new_message is written by the sender right after their message send succeeds,
+    //    addressed to the other room participant — verified against the real room, not
+    //    against chatRequests (a room may outlive its originating request's own status).
+    // Nobody may fabricate a notification's unread state on someone else's behalf: only
+    // the notification's own owner may ever flip `read`, and only to true.
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && resource != null && myPublicId() == resource.data.ownerPublicId;
 
@@ -149,25 +193,33 @@ service cloud.firestore {
         && request.resource.data.ownerPublicId != myPublicId()
         && request.resource.data.read == false
         && request.resource.data.fromCodename is string
-        && request.resource.data.requestId == pairId(request.resource.data.fromPublicId, request.resource.data.ownerPublicId)
         && (
           (request.resource.data.type == 'incoming_chat_request'
             && request.resource.data.roomId == null
+            && request.resource.data.requestId == pairId(request.resource.data.fromPublicId, request.resource.data.ownerPublicId)
             && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.status == 'pending'
             && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.fromPublicId == myPublicId()
             && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.toPublicId == request.resource.data.ownerPublicId)
           ||
           (request.resource.data.type == 'chat_request_accepted'
-            && request.resource.data.roomId == request.resource.data.requestId
+            && request.resource.data.roomId is string
+            && request.resource.data.requestId == pairId(request.resource.data.fromPublicId, request.resource.data.ownerPublicId)
             && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.status == 'pending'
             && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.toPublicId == myPublicId()
             && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.fromPublicId == request.resource.data.ownerPublicId)
           ||
           (request.resource.data.type == 'chat_request_declined'
             && request.resource.data.roomId == null
+            && request.resource.data.requestId == pairId(request.resource.data.fromPublicId, request.resource.data.ownerPublicId)
             && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.status == 'pending'
             && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.toPublicId == myPublicId()
             && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.fromPublicId == request.resource.data.ownerPublicId)
+          ||
+          (request.resource.data.type == 'new_message'
+            && request.resource.data.roomId is string
+            && get(/databases/$(database)/documents/chatRooms/$(request.resource.data.roomId)).data.status == 'active'
+            && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(request.resource.data.roomId)).data.participants
+            && request.resource.data.ownerPublicId in get(/databases/$(database)/documents/chatRooms/$(request.resource.data.roomId)).data.participants)
         );
     }
 

@@ -14,7 +14,7 @@ const STATUS_LABEL: Record<ChatRequestRecord['status'], string> = {
   accepted: 'รับคำขอแล้ว 🎉',
   declined: 'ถูกปฏิเสธ',
   cancelled: 'ยกเลิกแล้ว',
-  expired: 'หมดเวลาแล้ว',
+  expired: 'จบการสนทนาแล้ว',
 }
 
 /**
