@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Private per-user document (codename, avatarId, mood, onboarding state, completed
+    // activities, and the publicId pointer). Only the owning account may read or write
+    // it. Email is intentionally never stored here — Firebase Auth already owns it — so
+    // it can never leak through this collection even if a rule were misconfigured.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Public-facing profile (codename, avatarId, mood only) keyed by a random publicId
+    // that is NOT the Firebase uid — see users/{uid}.publicId. Any signed-in student may
+    // read these (needed for Echo Space / online-members display); a profile may only be
+    // written by the account whose private doc claims that publicId.
+    match /publicProfiles/{publicId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.publicId == publicId;
+    }
+
+    // Everything else is closed by default — no wildcard fallback rule.
+  }
+}

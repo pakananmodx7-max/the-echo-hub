@@ -1,10 +1,13 @@
-import { createContext, useCallback, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { authService } from '../features/auth/authService'
+import { presenceService } from '../features/presence/presenceService'
 import type { AuthUser, MoodId } from '../types'
 
 interface AuthContextValue {
   user: AuthUser | null
   isAuthenticated: boolean
+  /** True until the initial auth state (Firebase session resolution) has settled. */
+  loading: boolean
   login: (email: string, password: string) => Promise<AuthUser>
   register: (email: string, password: string) => Promise<AuthUser>
   logout: () => Promise<void>
@@ -18,7 +21,16 @@ interface AuthContextValue {
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => authService.getCurrentUser())
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const unsubscribe = authService.onAuthStateChanged((u) => {
+      setUser(u)
+      setLoading(false)
+    })
+    return unsubscribe
+  }, [])
 
   const login = useCallback(async (email: string, password: string) => {
     const u = await authService.login(email, password)
@@ -46,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setMood = useCallback(async (mood: MoodId) => {
     const u = await authService.updateUser({ mood })
     setUser(u)
+    presenceService.updateMood(mood)
     return u
   }, [])
 
@@ -70,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isAuthenticated: !!user,
+      loading,
       login,
       register,
       logout,
@@ -79,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       completeActivity,
       resetDemoData,
     }),
-    [user, login, register, logout, setCodename, setMood, completeOnboarding, completeActivity, resetDemoData],
+    [user, loading, login, register, logout, setCodename, setMood, completeOnboarding, completeActivity, resetDemoData],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

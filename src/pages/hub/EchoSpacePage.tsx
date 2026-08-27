@@ -4,7 +4,7 @@ import { Avatar } from '../../components/Avatar'
 import { Card } from '../../components/Card'
 import { ChatRequestModal } from '../../components/ChatRequestModal'
 import { MOODS, getMoodById } from '../../data/moods'
-import { ONLINE_USERS } from '../../data/onlineUsers'
+import { useOnlineMembers } from '../../features/presence/useOnlineMembers'
 import { useChatRequest } from '../../hooks/useChatRequest'
 import type { MoodId } from '../../types'
 
@@ -13,6 +13,7 @@ type FilterId = 'all' | MoodId
 export function EchoSpacePage() {
   const [filter, setFilter] = useState<FilterId>('all')
   const chatRequest = useChatRequest()
+  const onlineUsers = useOnlineMembers()
 
   const filters: { id: FilterId; label: string }[] = [
     { id: 'all', label: 'ทั้งหมด' },
@@ -20,8 +21,8 @@ export function EchoSpacePage() {
   ]
 
   const visibleUsers = useMemo(
-    () => (filter === 'all' ? ONLINE_USERS : ONLINE_USERS.filter((u) => u.mood === filter)),
-    [filter],
+    () => (filter === 'all' ? onlineUsers : onlineUsers.filter((u) => u.mood === filter)),
+    [filter, onlineUsers],
   )
 
   return (
@@ -29,7 +30,7 @@ export function EchoSpacePage() {
       <PageHeader title="💫 ECHO SPACE" subtitle="ตอนนี้มีใครอยู่ตรงนี้บ้าง" hideBack />
 
       <div className="px-5">
-        <p className="text-sm font-medium text-mint-text">🟢 {ONLINE_USERS.length} คนออนไลน์</p>
+        <p className="text-sm font-medium text-mint-text">🟢 {onlineUsers.length} คนออนไลน์</p>
 
         <div className="no-scrollbar mt-4 -mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
           {filters.map((f) => (

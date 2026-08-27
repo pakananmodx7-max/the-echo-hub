@@ -23,6 +23,8 @@ export interface EchoUser {
 export interface AuthUser {
   id: string
   email: string
+  /** Safe-to-share identifier used for presence/public profile — never the raw Firebase uid. */
+  publicId: string | null
   codename: string | null
   avatarId: string | null
   mood: MoodId | null

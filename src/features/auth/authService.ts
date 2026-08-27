@@ -1,3 +1,5 @@
+import { firebaseConfigured } from '../../lib/firebase'
+import { FirebaseAuthService } from './firebaseAuthService'
 import type { AuthUser, MoodId } from '../../types'
 
 /**
@@ -6,6 +8,12 @@ import type { AuthUser, MoodId } from '../../types'
  */
 export interface AuthService {
   getCurrentUser(): AuthUser | null
+  /**
+   * Fires immediately with the current user (or null), then again whenever it changes.
+   * Firebase's auth state resolves asynchronously, so consumers must use this instead of
+   * assuming `getCurrentUser()` is authoritative on first render. Returns an unsubscribe fn.
+   */
+  onAuthStateChanged(callback: (user: AuthUser | null) => void): () => void
   register(email: string, password: string): Promise<AuthUser>
   login(email: string, password: string): Promise<AuthUser>
   logout(): Promise<void>
@@ -47,6 +55,13 @@ class LocalAuthService implements AuthService {
     return users[email]?.user ?? null
   }
 
+  onAuthStateChanged(callback: (user: AuthUser | null) => void): () => void {
+    // localStorage is synchronous and single-tab in practice for this demo, so just
+    // report the current state once — there's no external session change to listen for.
+    callback(this.getCurrentUser())
+    return () => {}
+  }
+
   async register(email: string, password: string): Promise<AuthUser> {
     const normalized = email.trim().toLowerCase()
     if (!normalized || !password || password.length < 6) {
@@ -56,6 +71,7 @@ class LocalAuthService implements AuthService {
     const user: AuthUser = {
       id: makeId(),
       email: normalized,
+      publicId: null,
       codename: null,
       avatarId: null,
       mood: null,
@@ -81,6 +97,7 @@ class LocalAuthService implements AuthService {
       const user: AuthUser = {
         id: makeId(),
         email: normalized,
+        publicId: null,
         codename: null,
         avatarId: null,
         mood: null,
@@ -126,5 +143,9 @@ class LocalAuthService implements AuthService {
   }
 }
 
-export const authService: AuthService = new LocalAuthService()
+export { LocalAuthService }
 export type { MoodId }
+
+// Falls back to the localStorage-backed mock until a Firebase project is configured
+// (see .env.example) — nothing else in the app needs to know which one is active.
+export const authService: AuthService = firebaseConfigured ? new FirebaseAuthService() : new LocalAuthService()
