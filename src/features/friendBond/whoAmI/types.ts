@@ -38,6 +38,8 @@ export type WhoAmIGameMode = 'solo' | 'multiplayer' | 'team'
 
 export type TimerOption = 30 | 60 | 90 | 120 | 0
 
+export type ControlMode = 'motion' | 'buttons'
+
 export type DifficultyFilter = WhoAmIDifficulty | 'mixed'
 
 export interface WhoAmIGameConfig {

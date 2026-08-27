@@ -10,6 +10,7 @@ import { CategorySelectStep } from './steps/CategorySelectStep'
 import { DifficultyStep } from './steps/DifficultyStep'
 import { TimerStep } from './steps/TimerStep'
 import { HowToPlayStep } from './steps/HowToPlayStep'
+import { MotionCalibrationStep } from './steps/MotionCalibrationStep'
 import { HandoffStep } from './steps/HandoffStep'
 import { PlayScreen } from './steps/PlayScreen'
 import { RoundSummaryStep } from './steps/RoundSummaryStep'
@@ -19,7 +20,9 @@ import { SoloSummaryStep } from './steps/SoloSummaryStep'
 import { CATEGORY_GROUPS, entriesForSubcategoryIds } from '../../../../features/friendBond/whoAmI/data'
 import { SessionDeck, filterByDifficulty } from '../../../../features/friendBond/whoAmI/sessionDeck'
 import { buildTeamTurnOrder, makePlayers, teamScore } from '../../../../features/friendBond/whoAmI/gameEngine'
+import { motionApiAvailable } from '../../../../features/friendBond/whoAmI/useMotionGestures'
 import type {
+  ControlMode,
   DifficultyFilter,
   MusicGuessMode,
   PlayerScore,
@@ -38,6 +41,7 @@ type Phase =
   | 'difficulty'
   | 'timer'
   | 'how-to-play'
+  | 'motion-setup'
   | 'handoff'
   | 'play'
   | 'round-summary'
@@ -78,6 +82,8 @@ export function WhoAmIGamePage() {
   const [difficulty, setDifficulty] = useState<DifficultyFilter>('mixed')
   const [timerSeconds, setTimerSeconds] = useState<TimerOption>(60)
   const [musicMode, setMusicMode] = useState<MusicGuessMode>('title')
+
+  const [controlMode, setControlMode] = useState<ControlMode | null>(null)
 
   const [deck, setDeck] = useState<SessionDeck | null>(null)
   const [players, setPlayers] = useState<PlayerScore[]>([])
@@ -126,7 +132,7 @@ export function WhoAmIGamePage() {
     if (!seen) {
       setPhase('how-to-play')
     } else {
-      startGameFlow()
+      proceedToMotionSetup()
     }
   }
 
@@ -136,6 +142,24 @@ export function WhoAmIGamePage() {
     } catch {
       // ignore storage errors
     }
+    proceedToMotionSetup()
+  }
+
+  function proceedToMotionSetup() {
+    if (controlMode) {
+      startGameFlow()
+      return
+    }
+    if (!motionApiAvailable()) {
+      setControlMode('buttons')
+      startGameFlow()
+      return
+    }
+    setPhase('motion-setup')
+  }
+
+  function handleMotionSetupDone(mode: ControlMode) {
+    setControlMode(mode)
     startGameFlow()
   }
 
@@ -208,6 +232,7 @@ export function WhoAmIGamePage() {
         <ModeSelectStep
           onSelect={(m) => {
             setMode(m)
+            setControlMode(null)
             if (m === 'solo') setPhase('category')
             else setPhase('player-count')
           }}
@@ -277,12 +302,20 @@ export function WhoAmIGamePage() {
 
       {phase === 'how-to-play' ? <HowToPlayStep onReady={handleHowToPlayReady} /> : null}
 
+      {phase === 'motion-setup' ? <MotionCalibrationStep onDone={handleMotionSetupDone} /> : null}
+
       {phase === 'handoff' && currentPlayer ? (
         <HandoffStep playerName={currentPlayer.name} teamLabel={currentTeamLabel()} onDone={() => setPhase('play')} />
       ) : null}
 
       {phase === 'play' && deck ? (
-        <PlayScreen deck={deck} timerSeconds={timerSeconds} categoryLabel={categoryLabelFor(selectedSubcats)} onRoundEnd={handleRoundEnd} />
+        <PlayScreen
+          deck={deck}
+          timerSeconds={timerSeconds}
+          categoryLabel={categoryLabelFor(selectedSubcats)}
+          controlMode={controlMode ?? 'buttons'}
+          onRoundEnd={handleRoundEnd}
+        />
       ) : null}
 
       {phase === 'round-summary' && lastResult && currentPlayer ? (
