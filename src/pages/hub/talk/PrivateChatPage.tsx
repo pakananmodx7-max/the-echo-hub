@@ -201,10 +201,12 @@ export function PrivateChatPage() {
       <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4">
         {isEnded ? (
           <div
-            className="mb-4 rounded-2xl px-4 py-3 text-center text-sm"
+            className="mb-4 whitespace-pre-line rounded-2xl px-4 py-3 text-center text-sm"
             style={{ background: 'var(--chat-system-bg)', color: 'var(--chat-system-text)' }}
           >
-            การสนทนานี้จบแล้ว ขอบคุณที่รับฟังกันนะ 💜
+            {room?.endedBy === myPublicId
+              ? 'คุณได้จบการสนทนานี้แล้ว\nขอบคุณที่รับฟังกันนะ 💜'
+              : 'อีกฝ่ายได้จบการสนทนานี้แล้ว\nขอบคุณที่รับฟังกันนะ 💜'}
           </div>
         ) : null}
 
