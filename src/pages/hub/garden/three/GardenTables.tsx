@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { Instance, Instances } from '@react-three/drei'
 import { GROUP_TABLES, INDIVIDUAL_TABLES, type TableSize, type TableSpec } from './gardenLayout'
 
@@ -29,7 +29,11 @@ function seatSpots(table: TableSpec): [number, number][] {
  * table count (6) and every group table's seats (2-6 each) share the same pedestal and
  * stool geometry, so the whole set costs ~4 draw calls regardless of table count.
  */
-export function GardenTables() {
+// Zero props, purely static geometry — memoized so a remote player's position tick
+// (which re-renders GardenScene many times/sec) never re-runs this component's own
+// render (it would otherwise recompute allSeatSpots and re-diff five Instances blocks
+// for no visual change).
+export const GardenTables = memo(function GardenTables() {
   const allSeatSpots = useMemo(() => [...INDIVIDUAL_TABLES, ...GROUP_TABLES].flatMap(seatSpots), [])
 
   return (
@@ -79,4 +83,4 @@ export function GardenTables() {
       </Instances>
     </>
   )
-}
+})

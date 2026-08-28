@@ -1,9 +1,9 @@
-import { useRef } from 'react'
+import { memo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { GardenAvatar } from './GardenAvatar'
 import { lerpAngle } from './gardenMath'
-import type { GardenMember } from '../../../../features/garden/types'
+import type { GardenAvatarConfig, GardenMember } from '../../../../features/garden/types'
 
 interface RemoteGardenPlayerProps {
   member: GardenMember
@@ -15,12 +15,49 @@ interface RemoteGardenPlayerProps {
 const SMOOTH_LAMBDA = 9
 const WALK_THRESHOLD = 0.03
 
+function avatarConfigEqual(a: GardenAvatarConfig | undefined, b: GardenAvatarConfig | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.skinTone === b.skinTone &&
+    a.hairStyle === b.hairStyle &&
+    a.hairColor === b.hairColor &&
+    a.topStyle === b.topStyle &&
+    a.topColor === b.topColor &&
+    a.bottomStyle === b.bottomStyle &&
+    a.bottomColor === b.bottomColor &&
+    a.accessory === b.accessory
+  )
+}
+
+/**
+ * RTDB's `onValue` on the whole `gardenPresence` node re-delivers a brand-new object for
+ * EVERY member on ANY single member's move, so the default shallow-prop-reference memo
+ * comparison would never bail — this compares the fields that actually matter instead, so
+ * a room of 5 people where only 1 is walking only re-renders that 1 player's component
+ * (and its GardenAvatar/Html label), not all 5.
+ */
+function membersEqual(prev: RemoteGardenPlayerProps, next: RemoteGardenPlayerProps): boolean {
+  const a = prev.member
+  const b = next.member
+  return (
+    a.id === b.id &&
+    a.x === b.x &&
+    a.z === b.z &&
+    a.rotationY === b.rotationY &&
+    a.codename === b.codename &&
+    a.avatarId === b.avatarId &&
+    a.mood === b.mood &&
+    avatarConfigEqual(a.avatarConfig, b.avatarConfig)
+  )
+}
+
 /**
  * One other real person currently in the garden. Reads the latest RTDB-reported position
  * from `member` (updated only a few times a second by useGardenPlayers) but renders a
  * continuously interpolated position every frame — never jumps between network updates.
  */
-export function RemoteGardenPlayer({ member }: RemoteGardenPlayerProps) {
+export const RemoteGardenPlayer = memo(function RemoteGardenPlayer({ member }: RemoteGardenPlayerProps) {
   const groupRef = useRef<THREE.Group>(null!)
   const current = useRef({ x: member.x, z: member.z, rotationY: member.rotationY })
   const walkingRef = useRef(false)
@@ -57,4 +94,4 @@ export function RemoteGardenPlayer({ member }: RemoteGardenPlayerProps) {
       />
     </group>
   )
-}
+}, membersEqual)

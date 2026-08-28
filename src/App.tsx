@@ -4,27 +4,32 @@ import { AuthProvider } from './context/AuthContext'
 import { RequireAuth, RequireOnboarding } from './components/RouteGuards'
 import { WelcomePage } from './pages/WelcomePage'
 import { LoginPage } from './pages/LoginPage'
-import { RegisterPage } from './pages/RegisterPage'
-import { CreateCodenamePage } from './pages/CreateCodenamePage'
-import { MoodCheckinPage } from './pages/MoodCheckinPage'
-import { HubLayout } from './pages/hub/HubLayout'
-import { HomePage } from './pages/hub/HomePage'
-import { EchoSpacePage } from './pages/hub/EchoSpacePage'
-import { ActivitiesPage } from './pages/hub/ActivitiesPage'
-import { SendSongPage } from './pages/hub/activities/SendSongPage'
-import { SayItTodayPage } from './pages/hub/activities/SayItTodayPage'
-import { HearSomeonePage } from './pages/hub/activities/HearSomeonePage'
-import { TalkPage } from './pages/hub/TalkPage'
-import { NotificationsPage } from './pages/hub/NotificationsPage'
-import { ChatRequestsPage } from './pages/hub/talk/ChatRequestsPage'
-import { PrivateChatPage } from './pages/hub/talk/PrivateChatPage'
-import { FriendBondPage } from './pages/hub/friends/FriendBondPage'
-import { FriendQuestPage } from './pages/hub/friends/FriendQuestPage'
-import { ProfilePage } from './pages/hub/ProfilePage'
-import { DrawingHubPage } from './pages/hub/drawing/DrawingHubPage'
-import { EchoJournalPage } from './pages/hub/drawing/EchoJournalPage'
-import { DrawAndListenPage } from './pages/hub/drawing/DrawAndListenPage'
 import { GardenLoadingScreen } from './pages/hub/garden/GardenLoadingScreen'
+
+// Only the very first screen an unauthenticated visitor sees (Welcome) and the near-certain
+// next click (Login) are bundled eagerly — everything reachable only after signing in is
+// lazy-loaded, so the initial Login/Welcome paint never waits on hub/chat/Garden/game code.
+const RegisterPage = lazy(() => import('./pages/RegisterPage').then((m) => ({ default: m.RegisterPage })))
+const CreateCodenamePage = lazy(() => import('./pages/CreateCodenamePage').then((m) => ({ default: m.CreateCodenamePage })))
+const MoodCheckinPage = lazy(() => import('./pages/MoodCheckinPage').then((m) => ({ default: m.MoodCheckinPage })))
+
+const HubLayout = lazy(() => import('./pages/hub/HubLayout').then((m) => ({ default: m.HubLayout })))
+const HomePage = lazy(() => import('./pages/hub/HomePage').then((m) => ({ default: m.HomePage })))
+const EchoSpacePage = lazy(() => import('./pages/hub/EchoSpacePage').then((m) => ({ default: m.EchoSpacePage })))
+const ActivitiesPage = lazy(() => import('./pages/hub/ActivitiesPage').then((m) => ({ default: m.ActivitiesPage })))
+const SendSongPage = lazy(() => import('./pages/hub/activities/SendSongPage').then((m) => ({ default: m.SendSongPage })))
+const SayItTodayPage = lazy(() => import('./pages/hub/activities/SayItTodayPage').then((m) => ({ default: m.SayItTodayPage })))
+const HearSomeonePage = lazy(() => import('./pages/hub/activities/HearSomeonePage').then((m) => ({ default: m.HearSomeonePage })))
+const TalkPage = lazy(() => import('./pages/hub/TalkPage').then((m) => ({ default: m.TalkPage })))
+const NotificationsPage = lazy(() => import('./pages/hub/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
+const ChatRequestsPage = lazy(() => import('./pages/hub/talk/ChatRequestsPage').then((m) => ({ default: m.ChatRequestsPage })))
+const PrivateChatPage = lazy(() => import('./pages/hub/talk/PrivateChatPage').then((m) => ({ default: m.PrivateChatPage })))
+const FriendBondPage = lazy(() => import('./pages/hub/friends/FriendBondPage').then((m) => ({ default: m.FriendBondPage })))
+const FriendQuestPage = lazy(() => import('./pages/hub/friends/FriendQuestPage').then((m) => ({ default: m.FriendQuestPage })))
+const ProfilePage = lazy(() => import('./pages/hub/ProfilePage').then((m) => ({ default: m.ProfilePage })))
+const DrawingHubPage = lazy(() => import('./pages/hub/drawing/DrawingHubPage').then((m) => ({ default: m.DrawingHubPage })))
+const EchoJournalPage = lazy(() => import('./pages/hub/drawing/EchoJournalPage').then((m) => ({ default: m.EchoJournalPage })))
+const DrawAndListenPage = lazy(() => import('./pages/hub/drawing/DrawAndListenPage').then((m) => ({ default: m.DrawAndListenPage })))
 
 const EchoGardenPage = lazy(() =>
   import('./pages/hub/garden/EchoGardenPage').then((m) => ({ default: m.EchoGardenPage })),
@@ -46,14 +51,42 @@ function App() {
       <Routes>
         <Route path="/" element={<WelcomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route
+          path="/register"
+          element={
+            <Suspense fallback={<SimpleLoadingFallback />}>
+              <RegisterPage />
+            </Suspense>
+          }
+        />
 
         <Route element={<RequireAuth />}>
-          <Route path="/onboarding/codename" element={<CreateCodenamePage />} />
-          <Route path="/onboarding/mood" element={<MoodCheckinPage />} />
+          <Route
+            path="/onboarding/codename"
+            element={
+              <Suspense fallback={<SimpleLoadingFallback />}>
+                <CreateCodenamePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/onboarding/mood"
+            element={
+              <Suspense fallback={<SimpleLoadingFallback />}>
+                <MoodCheckinPage />
+              </Suspense>
+            }
+          />
 
           <Route element={<RequireOnboarding />}>
-            <Route path="/hub" element={<HubLayout />}>
+            <Route
+              path="/hub"
+              element={
+                <Suspense fallback={<SimpleLoadingFallback />}>
+                  <HubLayout />
+                </Suspense>
+              }
+            >
               <Route index element={<HomePage />} />
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="space" element={<EchoSpacePage />} />

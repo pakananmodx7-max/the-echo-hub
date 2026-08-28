@@ -8,6 +8,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -21,6 +22,7 @@ import {
 import { firebaseConfigured, getFirebaseAuth, getFirebaseFirestore } from '../../lib/firebase'
 import type { MoodId } from '../../types'
 import { CHAT_REQUEST_ERRORS, getEffectiveRequestStatus } from './chatRequestState'
+import { isPublicProfileKnownToExist, markPublicProfileExists } from './publicProfileCache'
 
 export type ChatRequestStatus = 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired'
 export type ChatRoomStatus = 'active' | 'ended'
@@ -241,10 +243,17 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
     // firebaseAuthService.ts), so a miss here means whatever called sendRequest resolved
     // the wrong identifier for its target (e.g. something other than that person's real
     // publicId) — never the publicId/uid itself, just whether it resolved.
-    const targetProfileSnap = await getDoc(doc(db, 'publicProfiles', to.publicId))
-    if (!targetProfileSnap.exists()) {
-      console.error('[chatRequest] profile_not_found', {})
-      throw new Error(CHAT_REQUEST_ERRORS.permissionDenied)
+    // publicProfiles are effectively append-only (never deleted), so once we've confirmed
+    // a given target exists this session there's no reason to spend another Firestore
+    // read re-confirming it — e.g. resending to the same person after a decline, or
+    // opening the confirm modal for someone already resolved earlier this session.
+    if (!isPublicProfileKnownToExist(to.publicId)) {
+      const targetProfileSnap = await getDoc(doc(db, 'publicProfiles', to.publicId))
+      if (!targetProfileSnap.exists()) {
+        console.error('[chatRequest] profile_not_found', {})
+        throw new Error(CHAT_REQUEST_ERRORS.permissionDenied)
+      }
+      markPublicProfileExists(to.publicId)
     }
     console.log('[chatRequest] target_profile_ok', {})
 
@@ -746,10 +755,15 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
 
   subscribeNotifications(publicId: string, callback: (notifications: ChatNotification[]) => void): () => void {
     const db = getFirebaseFirestore()
+    // Bounded to the most recent 50: the bell/toast/Notification Center only ever surface
+    // recent activity, so without a limit this listener would keep re-fetching and
+    // re-diffing an ever-growing history on every single new notification as an account
+    // accumulates months of activity — the same reasoning as gardenChat's limitToLast(50).
     const q = query(
       collection(db, 'notifications'),
       where('ownerPublicId', '==', publicId),
       orderBy('createdAt', 'desc'),
+      limit(50),
     )
     return onSnapshot(
       q,

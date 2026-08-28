@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { Instance, Instances } from '@react-three/drei'
 import {
   CENTRAL_TREE_POSITION,
@@ -144,7 +144,8 @@ function QuietBenches() {
   )
 }
 
-export function GardenLandmarks() {
+// Zero props, purely static — memoized for the same reason as GardenTables (see there).
+export const GardenLandmarks = memo(function GardenLandmarks() {
   return (
     <>
       <FlowerArch />
@@ -153,4 +154,4 @@ export function GardenLandmarks() {
       <QuietBenches />
     </>
   )
-}
+})

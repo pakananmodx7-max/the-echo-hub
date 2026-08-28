@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { createWaterfallTexture } from './gardenTextures'
@@ -16,7 +16,9 @@ const FOAM_COLOR = '#fdfaf4'
  * createWaterfallTexture), and the pool's shimmer is a single slowly-pulsing emissive
  * ring. Cheap enough to run at full quality on mobile while still feeling alive.
  */
-export function Waterfall() {
+// Zero props, own useFrame for its animation (unaffected by React re-renders either way)
+// — memoized so it doesn't re-render on every remote player's position tick either.
+export const Waterfall = memo(function Waterfall() {
   const [wx, wz] = WATERFALL_POSITION
   const [px, pz] = POOL_POSITION
   const waterTexA = useMemo(() => createWaterfallTexture(), [])
@@ -82,4 +84,4 @@ export function Waterfall() {
       </mesh>
     </group>
   )
-}
+})

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { GardenPlayer } from './GardenPlayer'
 import { RemoteGardenPlayer } from './RemoteGardenPlayer'
@@ -35,7 +35,11 @@ interface GardenSceneProps {
   paused?: boolean
 }
 
-function Lanterns({ glow }: { glow: boolean }) {
+// Ground/Paths/Lanterns are static (Lanterns only depends on the quality setting, not
+// `members`) but GardenScene itself re-renders on every remote player's position tick —
+// memoized so that frequent re-render never re-runs these three, matching the same
+// treatment as GardenTables/GardenLandmarks/GardenDecor/Waterfall/GardenObject below.
+const Lanterns = memo(function Lanterns({ glow }: { glow: boolean }) {
   return (
     <>
       {LANTERN_SPOTS.map(([x, z], i) => (
@@ -54,9 +58,9 @@ function Lanterns({ glow }: { glow: boolean }) {
       ))}
     </>
   )
-}
+})
 
-function Ground() {
+const Ground = memo(function Ground() {
   const grass = useMemo(() => createGrassTexture(), [])
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
@@ -64,7 +68,7 @@ function Ground() {
       <meshStandardMaterial map={grass} roughness={1} />
     </mesh>
   )
-}
+})
 
 /**
  * Every corridor connecting the garden's zones (see GARDEN_PATH_SEGMENTS in
@@ -73,7 +77,7 @@ function Ground() {
  * repeat count can match its own length, keeping the tiled dirt pattern a similar
  * density on both a 2-unit stub and a 10-unit spine segment.
  */
-function Paths() {
+const Paths = memo(function Paths() {
   const segments = useMemo(() => {
     const base = createPathTexture()
     return GARDEN_PATH_SEGMENTS.map((seg) => {
@@ -99,7 +103,7 @@ function Paths() {
       ))}
     </>
   )
-}
+})
 
 export function GardenScene({
   controls,

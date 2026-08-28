@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Instance, Instances } from '@react-three/drei'
 import * as THREE from 'three'
@@ -21,7 +21,10 @@ function mulberry32(seed: number) {
 const BUSH_GREENS = ['#7bb894', '#8fd6b4', '#6fa87f']
 const FLOWER_COLORS = ['#ffd7e6', '#ff9fc0', '#f6f0ff', '#e0c8ff']
 
-export function GardenDecor({ density, fireflies }: GardenDecorProps) {
+// density/fireflies only change when the user changes their quality setting, never on a
+// members/presence tick — memoized so GardenScene re-rendering on every remote player
+// move doesn't re-run the bush/flower/stone scatter generation and re-diff ~115 Instances.
+export const GardenDecor = memo(function GardenDecor({ density, fireflies }: GardenDecorProps) {
   const rand = useMemo(() => mulberry32(20260826), [])
 
   // Radius ranges widened for the Map Improvement phase's bigger garden (GARDEN_BOUND
@@ -102,7 +105,7 @@ export function GardenDecor({ density, fireflies }: GardenDecorProps) {
       {fireflies ? <Fireflies count={Math.round(10 * density)} rand={rand} /> : null}
     </>
   )
-}
+})
 
 function Fireflies({ count, rand }: { count: number; rand: () => number }) {
   const spots = useMemo(

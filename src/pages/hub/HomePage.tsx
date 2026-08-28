@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Avatar } from '../../components/Avatar'
 import { Card } from '../../components/Card'
@@ -10,6 +10,7 @@ import { getMoodById } from '../../data/moods'
 import { ONLINE_USERS } from '../../data/onlineUsers'
 import { useGardenPlayers } from '../../hooks/useGardenPlayers'
 import { useAuth } from '../../hooks/useAuth'
+import { prefetchWhenIdle } from '../../lib/idlePrefetch'
 import type { MoodId } from '../../types'
 
 export function HomePage() {
@@ -17,6 +18,18 @@ export function HomePage() {
   const [moodModalOpen, setMoodModalOpen] = useState(false)
   const [pendingMood, setPendingMood] = useState<MoodId | null>(user?.mood ?? null)
   const gardenMembers = useGardenPlayers()
+
+  // Echo Space and Notifications are the two most likely next taps from Home — prefetching
+  // their (already code-split, see App.tsx) chunks once the browser is idle makes that tap
+  // feel instant instead of waiting on a fresh download. Garden is deliberately never
+  // prefetched here — its 3D bundle is sizeable and should only load once actually opened,
+  // especially on mobile/slow connections (see prefetchWhenIdle's own connection check).
+  useEffect(() => {
+    return prefetchWhenIdle(() => {
+      void import('./EchoSpacePage')
+      void import('./NotificationsPage')
+    })
+  }, [])
 
   if (!user) return null
   const mood = getMoodById(user.mood ?? undefined)

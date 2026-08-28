@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react'
 import { privateChatBridge, type ChatRequestRecord } from '../features/chat/privateChatBridge'
 import { isPendingRequest } from '../features/chat/chatRequestState'
+import { createSharedSubscription } from '../lib/sharedSubscription'
 import { firebaseConfigured } from '../lib/firebase'
 import { useAuth } from './useAuth'
+
+// The global incoming-request popup (IncomingChatRequestModal, mounted in HubLayout), the
+// pending-requests review page, and TalkPage's own "you have N requests" summary all call
+// this at once — shared so they open exactly one real Firestore listener between them.
+const subscribeShared = createSharedSubscription<ChatRequestRecord[]>(
+  (publicId, callback) => privateChatBridge.subscribeIncomingRequests(publicId, callback),
+  [],
+)
 
 /**
  * Live list of pending chat requests addressed to the current account, newest last.
@@ -21,7 +30,7 @@ export function useIncomingChatRequests() {
       setRawRequests([])
       return
     }
-    return privateChatBridge.subscribeIncomingRequests(user.publicId, setRawRequests)
+    return subscribeShared(user.publicId, setRawRequests)
   }, [user?.publicId])
 
   useEffect(() => {

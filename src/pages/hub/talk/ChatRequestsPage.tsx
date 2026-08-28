@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Avatar } from '../../../components/Avatar'
 import { Button } from '../../../components/Button'
 import { Card } from '../../../components/Card'
 import { MoodBadge } from '../../../components/MoodBadge'
 import { PageHeader } from '../../../components/PageHeader'
-import { privateChatBridge, type ChatRequestRecord } from '../../../features/chat/privateChatBridge'
+import { privateChatBridge } from '../../../features/chat/privateChatBridge'
 import { getEffectiveRequestStatus, isPendingRequest, REQUEST_STATUS_LABEL } from '../../../features/chat/chatRequestState'
-import { useAuth } from '../../../hooks/useAuth'
 import { useIncomingChatRequests } from '../../../hooks/useIncomingChatRequests'
+import { useSentChatRequests } from '../../../hooks/useSentChatRequests'
 
 /**
  * Reachable from the "คำขอคุยที่ค้างอยู่" card on the Talk page — the place to review
@@ -16,20 +16,11 @@ import { useIncomingChatRequests } from '../../../hooks/useIncomingChatRequests'
  */
 export function ChatRequestsPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
   const { requests: incoming, accept, decline } = useIncomingChatRequests()
-  const [sent, setSent] = useState<ChatRequestRecord[]>([])
+  const sent = useSentChatRequests()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [errorId, setErrorId] = useState<string | null>(null)
   const [errorText, setErrorText] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!user?.publicId) {
-      setSent([])
-      return
-    }
-    return privateChatBridge.subscribeSentRequests(user.publicId, setSent)
-  }, [user?.publicId])
 
   async function handleAccept(requestId: string) {
     setBusyId(requestId)

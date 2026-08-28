@@ -1,10 +1,14 @@
+import { memo } from 'react'
 import type { GardenObjectDef } from './gardenLayout'
 
 interface GardenObjectProps {
   def: GardenObjectDef
 }
 
-export function GardenObject({ def }: GardenObjectProps) {
+// `def` comes from the module-level GARDEN_OBJECTS array (stable references across
+// renders), so memoizing skips a full re-render of every static interactive prop each
+// time GardenScene re-renders on a remote player's position tick.
+export const GardenObject = memo(function GardenObject({ def }: GardenObjectProps) {
   const [x, z] = def.position
 
   return (
@@ -16,7 +20,7 @@ export function GardenObject({ def }: GardenObjectProps) {
       {def.id === 'exit' ? <ExitMesh x={x} z={z} /> : null}
     </group>
   )
-}
+})
 
 function SongTreeMesh({ x, z }: { x: number; z: number }) {
   return (

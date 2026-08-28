@@ -32,6 +32,7 @@ interface PresenceRecord {
 
 class FirebasePresenceService implements PresenceService {
   private currentPublicId: string | null = null
+  private connectedUnsub: (() => void) | null = null
 
   subscribeOnlineMembers(callback: (members: PresenceMember[]) => void): () => void {
     const presenceRef = ref(getFirebaseDatabase(), 'presence')
@@ -66,7 +67,11 @@ class FirebasePresenceService implements PresenceService {
     const presenceRef = ref(db, `presence/${profile.publicId}`)
     const connectedRef = ref(db, '.info/connected')
 
-    onValue(connectedRef, (snap) => {
+    // A prior goOnline's `.info/connected` listener (e.g. from a previous login in this
+    // tab) must be torn down before registering a new one — otherwise each login/logout
+    // cycle stacks another live RTDB subscription that's never cleaned up.
+    if (this.connectedUnsub) this.connectedUnsub()
+    this.connectedUnsub = onValue(connectedRef, (snap) => {
       if (snap.val() !== true) return
       rtdbOnDisconnect(presenceRef)
         .update({ online: false, lastChanged: serverTimestamp() })
@@ -90,6 +95,10 @@ class FirebasePresenceService implements PresenceService {
   }
 
   goOffline(): void {
+    if (this.connectedUnsub) {
+      this.connectedUnsub()
+      this.connectedUnsub = null
+    }
     if (!this.currentPublicId) return
     void update(ref(getFirebaseDatabase(), `presence/${this.currentPublicId}`), {
       online: false,

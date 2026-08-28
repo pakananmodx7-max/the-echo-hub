@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Avatar } from '../../components/Avatar'
 import { Button } from '../../components/Button'
@@ -11,10 +11,9 @@ import {
   type ChatRequestStatus,
 } from '../../features/chat/privateChatBridge'
 import { getEffectiveRequestStatus, REQUEST_STATUS_LABEL } from '../../features/chat/chatRequestState'
-import { useAuth } from '../../hooks/useAuth'
 import { useNotifications } from '../../hooks/useNotifications'
 import { useReceivedChatRequests } from '../../hooks/useReceivedChatRequests'
-import { firebaseConfigured } from '../../lib/firebase'
+import { useSentChatRequests } from '../../hooks/useSentChatRequests'
 import { formatRelativeTime } from '../../lib/relativeTime'
 import { notificationText } from '../../lib/notificationText'
 
@@ -43,21 +42,12 @@ interface DisplayItem {
  */
 export function NotificationsPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
   const { notifications, unreadCount, markRead, markAllRead } = useNotifications()
   const receivedRequests = useReceivedChatRequests()
-  const [sentRequests, setSentRequests] = useState<ChatRequestRecord[]>([])
+  const sentRequests = useSentChatRequests()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [errorId, setErrorId] = useState<string | null>(null)
   const [errorText, setErrorText] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!firebaseConfigured || !user?.publicId) {
-      setSentRequests([])
-      return
-    }
-    return privateChatBridge.subscribeSentRequests(user.publicId, setSentRequests)
-  }, [user?.publicId])
 
   const requestById = useMemo(() => {
     const map = new Map<string, ChatRequestRecord>()

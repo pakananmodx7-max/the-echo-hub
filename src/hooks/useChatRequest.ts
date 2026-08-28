@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { privateChatBridge, type ChatRequestRecord, type ChatRequestTarget } from '../features/chat/privateChatBridge'
+import { privateChatBridge, type ChatRequestTarget } from '../features/chat/privateChatBridge'
 import { isPendingRequest } from '../features/chat/chatRequestState'
 import { firebaseConfigured } from '../lib/firebase'
 import { useAuth } from './useAuth'
+import { useSentChatRequests } from './useSentChatRequests'
 
 /**
  * Forces isPendingRequest's clock-based staleness check to be re-evaluated periodically
@@ -32,17 +33,9 @@ export function useChatRequest() {
   const [target, setTarget] = useState<ChatRequestTarget | null>(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [sentRequests, setSentRequests] = useState<ChatRequestRecord[]>([])
   const [localSentIds, setLocalSentIds] = useState<Set<string>>(new Set())
+  const sentRequests = useSentChatRequests()
   useStalenessTick()
-
-  useEffect(() => {
-    if (!firebaseConfigured || !user?.publicId) {
-      setSentRequests([])
-      return
-    }
-    return privateChatBridge.subscribeSentRequests(user.publicId, setSentRequests)
-  }, [user?.publicId])
 
   function request(nextTarget: ChatRequestTarget) {
     setError(null)
