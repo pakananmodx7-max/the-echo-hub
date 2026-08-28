@@ -1,15 +1,17 @@
 import type { GardenChatMessage, GardenMember, KindWordEntry, SongTreeEntry } from './types'
 
 /**
- * Demo backdrop only — a small fixed cast so the garden doesn't feel empty
- * on first visit. None of this is live; it never claims other real people
- * are currently present.
+ * Demo backdrop only, used when Firebase isn't configured — a small fixed cast
+ * so the garden doesn't feel empty in that fallback mode. None of this is
+ * live; it never claims other real people are currently present. Positions
+ * are world-space and reuse the same safe spawn cluster real players land in
+ * (see GARDEN_SPAWN_POINTS) so they never overlap an obstacle.
  */
 export const GARDEN_MEMBER_SEED: GardenMember[] = [
-  { id: 'g1', codename: 'Moon17', avatarId: 'moon', mood: 'need-ear', online: true, position: [-0.5, 0.3] },
-  { id: 'g2', codename: 'BlueFox', avatarId: 'fox', mood: 'ready-to-listen', online: true, position: [0.4, -0.2] },
-  { id: 'g3', codename: 'Cloud09', avatarId: 'cloud', mood: 'good', online: true, position: [-0.2, -0.5] },
-  { id: 'g4', codename: 'TinyComet27', avatarId: 'comet', mood: 'okay', online: true, position: [0.6, 0.4] },
+  { id: 'g1', codename: 'Moon17', avatarId: 'moon', mood: 'need-ear', online: true, x: -1.8, y: 0.58, z: 4.3, rotationY: 0 },
+  { id: 'g2', codename: 'BlueFox', avatarId: 'fox', mood: 'ready-to-listen', online: true, x: 1.8, y: 0.58, z: 4.3, rotationY: 0 },
+  { id: 'g3', codename: 'Cloud09', avatarId: 'cloud', mood: 'good', online: true, x: -2.6, y: 0.58, z: 3.4, rotationY: 0 },
+  { id: 'g4', codename: 'TinyComet27', avatarId: 'comet', mood: 'okay', online: true, x: 2.6, y: 0.58, z: 3.4, rotationY: 0 },
 ]
 
 export const GARDEN_CHAT_SEED: GardenChatMessage[] = [

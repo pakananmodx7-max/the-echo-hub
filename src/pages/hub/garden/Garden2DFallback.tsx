@@ -1,6 +1,5 @@
 import { Card } from '../../../components/Card'
 import { Button } from '../../../components/Button'
-import { gardenPresenceService } from '../../../features/garden/gardenPresenceService'
 
 interface Garden2DFallbackProps {
   memberCount?: number
@@ -23,7 +22,7 @@ export function Garden2DFallback({
   onOpenBench,
   onExit,
 }: Garden2DFallbackProps) {
-  const count = memberCount ?? gardenPresenceService.listMembers().length
+  const count = memberCount ?? 1
 
   return (
     <div className="px-5 pb-8">

@@ -24,8 +24,8 @@ export function ListeningStoneModal({ open, onClose, currentUser }: ListeningSto
   }, [open])
 
   function handleSend() {
-    gardenPublicChatService.sendMessage({
-      authorId: currentUser.id,
+    void gardenPublicChatService.sendMessage({
+      authorPublicId: currentUser.id,
       authorCodename: currentUser.codename,
       authorAvatarId: currentUser.avatarId ?? 'cloud',
       text: prompt,

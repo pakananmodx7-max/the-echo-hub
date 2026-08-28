@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Avatar } from '../../../components/Avatar'
 import { Button } from '../../../components/Button'
-import { gardenPublicChatService } from '../../../features/garden/gardenPublicChatService'
+import { useGardenPublicChat } from '../../../hooks/useGardenPublicChat'
 import { GARDEN_CHAT_MAX_LENGTH, GARDEN_CHAT_MIN_INTERVAL_MS } from '../../../data/gardenPrompts'
-import type { GardenChatMessage } from '../../../features/garden/types'
 
 const QUICK_EMOJI = ['🤍', '✨', '😂', '👍', '🫂']
 const MUTED_KEY = 'echoHub.garden.mock.mutedAuthors'
@@ -27,15 +26,13 @@ interface GardenChatPanelProps {
 }
 
 export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
-  const [messages, setMessages] = useState<GardenChatMessage[]>(() => gardenPublicChatService.listMessages())
+  const { messages, sendMessage, reportMessage } = useGardenPublicChat()
   const [draft, setDraft] = useState('')
   const [mutedIds, setMutedIds] = useState<Set<string>>(() => readMuted())
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null)
   const [rateLimited, setRateLimited] = useState(false)
   const lastSentAt = useRef(0)
   const listEndRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => gardenPublicChatService.subscribe(setMessages), [])
 
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ block: 'end' })
@@ -51,13 +48,13 @@ export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
       return
     }
     lastSentAt.current = now
-    gardenPublicChatService.sendMessage({
-      authorId: currentUser.id,
+    setDraft('')
+    void sendMessage({
+      authorPublicId: currentUser.id,
       authorCodename: currentUser.codename,
       authorAvatarId: currentUser.avatarId ?? 'cloud',
       text,
-    })
-    setDraft('')
+    }).catch((err) => console.error('[garden] sendMessage failed', err))
   }
 
   function toggleMute(authorId: string) {
@@ -70,7 +67,7 @@ export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
   }
 
   function handleReport(messageId: string) {
-    gardenPublicChatService.reportMessage(messageId)
+    reportMessage(messageId)
     setOpenMenuFor(null)
     window.alert('รายงานข้อความแล้ว ทีมงานจะตรวจสอบภายหลัง')
   }

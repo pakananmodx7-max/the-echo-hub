@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { GardenPlayer } from './GardenPlayer'
-import { GardenAvatar } from './GardenAvatar'
+import { RemoteGardenPlayer } from './RemoteGardenPlayer'
 import { GardenObject } from './GardenObject'
 import { GardenDecor } from './GardenDecor'
 import { TapToMoveController } from './TapToMoveController'
@@ -15,8 +15,11 @@ import type { GardenObjectDef } from './gardenLayout'
 interface GardenSceneProps {
   controls: GardenControls
   playerAvatarConfig: GardenAvatarConfig
+  spawn: [number, number]
   members: GardenMember[]
   onNearestChange: (id: GardenObjectDef['id'] | null) => void
+  onNearestPlayerChange?: (id: string | null) => void
+  onLocalMove?: (x: number, y: number, z: number, rotationY: number) => void
   quality: GardenQualitySettings
   onFrame?: (deltaSeconds: number) => void
   paused?: boolean
@@ -79,8 +82,11 @@ function Paths() {
 export function GardenScene({
   controls,
   playerAvatarConfig,
+  spawn,
   members,
   onNearestChange,
+  onNearestPlayerChange,
+  onLocalMove,
   quality,
   onFrame,
   paused = false,
@@ -119,12 +125,19 @@ export function GardenScene({
         ))}
 
         {members.map((m) => (
-          <group key={m.id} position={[m.position[0] * 4.5, 0, m.position[1] * 4.5]}>
-            <GardenAvatar avatarId={m.avatarId} codename={m.codename} mood={m.mood} />
-          </group>
+          <RemoteGardenPlayer key={m.id} member={m} />
         ))}
 
-        <GardenPlayer controls={controls} avatarConfig={playerAvatarConfig} onNearestChange={onNearestChange} onFrame={onFrame} />
+        <GardenPlayer
+          controls={controls}
+          avatarConfig={playerAvatarConfig}
+          spawn={spawn}
+          members={members}
+          onNearestChange={onNearestChange}
+          onNearestPlayerChange={onNearestPlayerChange}
+          onLocalMove={onLocalMove}
+          onFrame={onFrame}
+        />
         <TapToMoveController controls={controls} />
       </Canvas>
     </div>

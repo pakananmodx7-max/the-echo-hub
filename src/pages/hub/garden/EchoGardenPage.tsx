@@ -6,10 +6,11 @@ import { Button } from '../../../components/Button'
 import { useAuth } from '../../../hooks/useAuth'
 import { useChatRequest } from '../../../hooks/useChatRequest'
 import { detectWebGL } from '../../../features/garden/detectWebGL'
-import { gardenPresenceService } from '../../../features/garden/gardenPresenceService'
 import { avatarProfileService } from '../../../features/garden/avatarProfileService'
 import { DEFAULT_GARDEN_AVATAR_CONFIG } from '../../../data/gardenAvatarOptions'
 import { DEFAULT_GARDEN_TRACK } from '../../../data/gardenTracks'
+import { useGardenPresence } from '../../../hooks/useGardenPresence'
+import { useGardenPlayers } from '../../../hooks/useGardenPlayers'
 import { GardenLoadingScreen } from './GardenLoadingScreen'
 import { Garden2DFallback } from './Garden2DFallback'
 import { GardenErrorBoundary } from './GardenErrorBoundary'
@@ -17,6 +18,7 @@ import { GardenHUD } from './GardenHUD'
 import { GardenSettingsPanel } from './GardenSettingsPanel'
 import { GardenChatPanel } from './GardenChatPanel'
 import { GardenOnlinePanel } from './GardenOnlinePanel'
+import { GardenNearbyPlayerCard } from './GardenNearbyPlayerCard'
 import { SongTreeModal } from './modals/SongTreeModal'
 import { KindWordModal } from './modals/KindWordModal'
 import { ListeningStoneModal } from './modals/ListeningStoneModal'
@@ -24,7 +26,7 @@ import { PrivateBenchModal } from './modals/PrivateBenchModal'
 import { useGardenControls, useGardenControlMode } from './three/useGardenControls'
 import { useGardenQuality } from './three/useGardenQuality'
 import { useGardenMusic } from './useGardenMusic'
-import { GARDEN_OBJECTS, type GardenObjectDef } from './three/gardenLayout'
+import { GARDEN_OBJECTS, pickSpawnPoint, type GardenObjectDef } from './three/gardenLayout'
 
 const GardenScene = lazy(() =>
   import('./three/GardenScene').then((m) => ({ default: m.GardenScene })),
@@ -44,12 +46,20 @@ export function EchoGardenPage() {
   const [webglOk, setWebglOk] = useState<boolean | null>(null)
   const [pageVisible, setPageVisible] = useState(!document.hidden)
   const [nearestId, setNearestId] = useState<GardenObjectDef['id'] | null>(null)
+  const [nearestPlayerId, setNearestPlayerId] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>(null)
+  const [spawn] = useState<[number, number]>(() => pickSpawnPoint())
 
-  const members = useMemo(() => gardenPresenceService.listMembers(), [])
   const avatarConfig = user
     ? (avatarProfileService.getConfig(user.id) ?? DEFAULT_GARDEN_AVATAR_CONFIG)
     : DEFAULT_GARDEN_AVATAR_CONFIG
+
+  const members = useGardenPlayers()
+  const { reportLocalMove } = useGardenPresence(avatarConfig, spawn)
+  const nearestPlayer = useMemo(
+    () => members.find((m) => m.id === nearestPlayerId) ?? null,
+    [members, nearestPlayerId],
+  )
 
   useEffect(() => {
     setWebglOk(detectWebGL())
@@ -72,7 +82,10 @@ export function EchoGardenPage() {
 
   if (!user) return null
   if (!avatarProfileService.hasConfig(user.id)) return null
+  if (!user.publicId) return null
   const currentUser = { id: user.id, codename: user.codename ?? 'You', avatarId: user.avatarId }
+  // Garden-facing identity — publicId only, never the raw Firebase uid (shared with everyone in the garden).
+  const gardenUser = { id: user.publicId, codename: user.codename ?? 'You', avatarId: user.avatarId }
 
   function handleSelectObject(id: GardenObjectDef['id']) {
     if (id === 'exit') {
@@ -100,7 +113,7 @@ export function EchoGardenPage() {
   }
 
   const fallback2DProps = {
-    memberCount: members.length,
+    memberCount: members.length + 1,
     onOpenChat: () => setPanel('chat'),
     onOpenOnline: () => setPanel('online'),
     onOpenSong: () => setPanel('song'),
@@ -147,8 +160,11 @@ export function EchoGardenPage() {
               <GardenScene
                 controls={controls}
                 playerAvatarConfig={avatarConfig}
+                spawn={spawn}
                 members={members}
                 onNearestChange={setNearestId}
+                onNearestPlayerChange={setNearestPlayerId}
+                onLocalMove={reportLocalMove}
                 paused={!pageVisible}
                 quality={quality.settings}
                 onFrame={quality.reportFrame}
@@ -156,7 +172,7 @@ export function EchoGardenPage() {
               <GardenHUD
                 controls={controls}
                 controlMode={controlMode}
-                memberCount={members.length}
+                memberCount={members.length + 1}
                 interaction={nearestDef ? { icon: nearestDef.icon, label: nearestDef.label } : null}
                 onInteract={() => nearestId && handleSelectObject(nearestId)}
                 onOpenChat={() => setPanel('chat')}
@@ -166,6 +182,13 @@ export function EchoGardenPage() {
                 onExit={() => navigate('/hub')}
                 music={musicProps}
               />
+              {nearestPlayer ? (
+                <GardenNearbyPlayerCard
+                  member={nearestPlayer}
+                  onGreet={() => window.alert(`ทักทาย ${nearestPlayer.codename} แล้ว 👋`)}
+                  onRequestChat={() => chatRequest.request(nearestPlayer)}
+                />
+              ) : null}
             </div>
           </Suspense>
         </GardenErrorBoundary>
@@ -181,7 +204,7 @@ export function EchoGardenPage() {
             </button>
           </div>
           <div className="flex-1 overflow-hidden">
-            <GardenChatPanel currentUser={currentUser} />
+            <GardenChatPanel currentUser={gardenUser} />
           </div>
         </div>
       ) : null}
@@ -235,7 +258,7 @@ export function EchoGardenPage() {
 
       <SongTreeModal open={panel === 'song'} onClose={() => setPanel(null)} currentUser={currentUser} />
       <KindWordModal open={panel === 'kind-word'} onClose={() => setPanel(null)} currentUser={currentUser} />
-      <ListeningStoneModal open={panel === 'stone'} onClose={() => setPanel(null)} currentUser={currentUser} />
+      <ListeningStoneModal open={panel === 'stone'} onClose={() => setPanel(null)} currentUser={gardenUser} />
       <PrivateBenchModal
         open={panel === 'bench'}
         onClose={() => setPanel(null)}

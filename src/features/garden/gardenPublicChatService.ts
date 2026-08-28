@@ -1,83 +1,99 @@
-import { createLocalGardenStore } from './localGardenStore'
-import { GARDEN_CHAT_SEED } from './gardenSeedData'
+import { limitToLast, onValue, orderByChild, push, query, ref, serverTimestamp, set } from 'firebase/database'
+import { firebaseConfigured, getFirebaseAuth, getFirebaseDatabase } from '../../lib/firebase'
 import { GARDEN_CHAT_MAX_LENGTH } from '../../data/gardenPrompts'
+import { GARDEN_CHAT_SEED } from './gardenSeedData'
 import type { GardenChatMessage } from './types'
 
 interface SendTextInput {
-  authorId: string
+  authorPublicId: string
   authorCodename: string
   authorAvatarId: string
   text: string
 }
 
-interface SendSongInput {
-  authorId: string
-  authorCodename: string
-  authorAvatarId: string
-  song: { title: string; artist: string; link?: string }
-}
-
 /**
- * Interface-first: swap for a Firestore-backed implementation later without
- * touching GardenChatPanel or GardenScene. Report/mute hooks exist now so
- * moderation can be wired to a real backend later; in mock mode they only
- * affect what this device shows.
+ * Interface-first, same pattern as every other Phase 2/3 service. Everyone currently in
+ * the garden shares one `gardenChat/messages` Realtime Database node — no per-device mock
+ * store, no mute/report backend yet (report is recorded locally only, same as before;
+ * moderation hooks are ready to wire to a real queue later).
  */
 export interface GardenPublicChatService {
-  listMessages(): GardenChatMessage[]
   subscribe(callback: (messages: GardenChatMessage[]) => void): () => void
-  sendMessage(input: SendTextInput): GardenChatMessage
-  sendSongCard(input: SendSongInput): GardenChatMessage
+  sendMessage(input: SendTextInput): Promise<void>
   reportMessage(messageId: string, reason?: string): void
 }
 
-function makeId() {
-  return `gc-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+const MESSAGE_LIMIT = 50
+
+function toGardenChatMessage(id: string, data: Record<string, unknown>): GardenChatMessage {
+  return {
+    id,
+    authorId: data.authorPublicId as string,
+    authorCodename: data.authorCodename as string,
+    authorAvatarId: data.authorAvatarId as string,
+    kind: data.kind as 'text' | 'song',
+    text: data.text as string | undefined,
+    song: data.song as GardenChatMessage['song'],
+    createdAt: typeof data.createdAt === 'number' ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
+  }
 }
 
-const store = createLocalGardenStore<GardenChatMessage>('publicChat', GARDEN_CHAT_SEED)
-const reportedMessageIds = new Set<string>()
-
-class MockGardenPublicChatService implements GardenPublicChatService {
-  listMessages(): GardenChatMessage[] {
-    return store.list()
-  }
-
+class FirebaseGardenPublicChatService implements GardenPublicChatService {
   subscribe(callback: (messages: GardenChatMessage[]) => void): () => void {
-    return store.subscribe(callback)
+    const db = getFirebaseDatabase()
+    const messagesQuery = query(ref(db, 'gardenChat/messages'), orderByChild('createdAt'), limitToLast(MESSAGE_LIMIT))
+    return onValue(
+      messagesQuery,
+      (snap) => {
+        const list: GardenChatMessage[] = []
+        snap.forEach((child) => {
+          list.push(toGardenChatMessage(child.key as string, child.val()))
+          return false
+        })
+        callback(list)
+      },
+      (err) => console.error('[garden] chat subscribe failed', err),
+    )
   }
 
-  sendMessage(input: SendTextInput): GardenChatMessage {
-    const message: GardenChatMessage = {
-      id: makeId(),
-      authorId: input.authorId,
+  async sendMessage(input: SendTextInput): Promise<void> {
+    const text = input.text.trim().slice(0, GARDEN_CHAT_MAX_LENGTH)
+    if (!text) return
+    const uid = getFirebaseAuth().currentUser?.uid
+    if (!uid) return
+    const db = getFirebaseDatabase()
+    const newRef = push(ref(db, 'gardenChat/messages'))
+    await set(newRef, {
+      authorPublicId: input.authorPublicId,
       authorCodename: input.authorCodename,
       authorAvatarId: input.authorAvatarId,
-      kind: 'text',
-      text: input.text.slice(0, GARDEN_CHAT_MAX_LENGTH),
-      createdAt: new Date().toISOString(),
-    }
-    return store.add(message)
-  }
-
-  sendSongCard(input: SendSongInput): GardenChatMessage {
-    const message: GardenChatMessage = {
-      id: makeId(),
-      authorId: input.authorId,
-      authorCodename: input.authorCodename,
-      authorAvatarId: input.authorAvatarId,
-      kind: 'song',
-      song: input.song,
-      createdAt: new Date().toISOString(),
-    }
-    return store.add(message)
+      kind: 'text' as const,
+      text,
+      createdAt: serverTimestamp(),
+    })
+    // Best-effort cooldown marker backing the rules-level rate limit — a failure here just
+    // means the next send briefly skips the server-side check; GardenChatPanel's own
+    // client-side cooldown (GARDEN_CHAT_MIN_INTERVAL_MS) still applies regardless.
+    void set(ref(db, `gardenChatCooldown/${input.authorPublicId}`), serverTimestamp()).catch((err) =>
+      console.error('[garden] chat cooldown write failed', err),
+    )
   }
 
   reportMessage(messageId: string, _reason?: string): void {
-    // Mock mode: remember locally only. A real backend would create a
-    // moderation-queue record instead.
-    reportedMessageIds.add(messageId)
+    // No moderation backend yet — matches the mock service's prior local-only behavior.
+    console.info('[garden] message reported (not yet backed by a moderation queue)', messageId)
   }
 }
 
-export const gardenPublicChatService: GardenPublicChatService = new MockGardenPublicChatService()
+class NoopGardenPublicChatService implements GardenPublicChatService {
+  subscribe(callback: (messages: GardenChatMessage[]) => void): () => void {
+    callback(GARDEN_CHAT_SEED)
+    return () => {}
+  }
+  async sendMessage(): Promise<void> {}
+  reportMessage(): void {}
+}
+
+export const gardenPublicChatService: GardenPublicChatService = firebaseConfigured
+  ? new FirebaseGardenPublicChatService()
+  : new NoopGardenPublicChatService()

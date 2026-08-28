@@ -2,36 +2,51 @@ import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { GardenAvatar } from './GardenAvatar'
+import { lerpAngle } from './gardenMath'
 import type { GardenControls } from './useGardenControls'
 import { GARDEN_BOUND, GARDEN_OBJECTS, INTERACTION_RADIUS, OBSTACLE_MARGIN, type GardenObjectDef } from './gardenLayout'
-import type { GardenAvatarConfig } from '../../../../features/garden/types'
+import type { GardenAvatarConfig, GardenMember } from '../../../../features/garden/types'
 
 interface GardenPlayerProps {
   controls: GardenControls
   avatarConfig: GardenAvatarConfig
+  spawn?: [number, number]
+  members?: GardenMember[]
   onNearestChange: (id: GardenObjectDef['id'] | null) => void
+  onNearestPlayerChange?: (id: string | null) => void
+  onLocalMove?: (x: number, y: number, z: number, rotationY: number) => void
   onFrame?: (deltaSeconds: number) => void
 }
 
 const WALK_SPEED = 3.2
 const ARRIVE_DISTANCE = 0.18
 const BASE_ELEVATION = 0.58
+const PLAYER_INTERACTION_RADIUS = 1.6
 
-function lerpAngle(a: number, b: number, t: number) {
-  let diff = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI
-  if (diff < -Math.PI) diff += Math.PI * 2
-  return a + diff * t
-}
-
-export function GardenPlayer({ controls, avatarConfig, onNearestChange, onFrame }: GardenPlayerProps) {
+export function GardenPlayer({
+  controls,
+  avatarConfig,
+  spawn,
+  members,
+  onNearestChange,
+  onNearestPlayerChange,
+  onLocalMove,
+  onFrame,
+}: GardenPlayerProps) {
   const groupRef = useRef<THREE.Group>(null!)
   const { camera } = useThree()
-  const posRef = useRef({ x: 0, z: 3.5 })
+  const spawnPoint = useRef(spawn ?? [0, 3.5]).current
+  const posRef = useRef({ x: spawnPoint[0], z: spawnPoint[1] })
   const yawRef = useRef(Math.PI)
   const nearestRef = useRef<GardenObjectDef['id'] | null>(null)
+  const nearestPlayerRef = useRef<string | null>(null)
   const camPos = useRef(new THREE.Vector3(0, 4.5, 9.5))
   const camTarget = useRef(new THREE.Vector3())
   const isMovingRef = useRef(false)
+  // Kept in sync every render so the 60fps useFrame loop can scan the latest roster
+  // without restarting the frame-loop closure on every presence update.
+  const membersRef = useRef(members ?? [])
+  membersRef.current = members ?? []
 
   useFrame((_, rawDelta) => {
     onFrame?.(rawDelta)
@@ -134,10 +149,31 @@ export function GardenPlayer({ controls, avatarConfig, onNearestChange, onFrame 
       nearestRef.current = nearestId
       onNearestChange(nearestId)
     }
+
+    // proximity → nearest real player (for the "wave / request private chat" prompt)
+    if (onNearestPlayerChange) {
+      let nearestPlayerId: string | null = null
+      let nearestPlayerDist = PLAYER_INTERACTION_RADIUS
+      for (const member of membersRef.current) {
+        const dx = member.x - posRef.current.x
+        const dz = member.z - posRef.current.z
+        const dist = Math.hypot(dx, dz)
+        if (dist < nearestPlayerDist) {
+          nearestPlayerDist = dist
+          nearestPlayerId = member.id
+        }
+      }
+      if (nearestPlayerId !== nearestPlayerRef.current) {
+        nearestPlayerRef.current = nearestPlayerId
+        onNearestPlayerChange(nearestPlayerId)
+      }
+    }
+
+    onLocalMove?.(posRef.current.x, BASE_ELEVATION, posRef.current.z, yawRef.current)
   })
 
   return (
-    <group ref={groupRef} position={[0, 0, 3.5]}>
+    <group ref={groupRef} position={[spawnPoint[0], 0, spawnPoint[1]]}>
       <GardenAvatar avatarId={null} config={avatarConfig} showLabel={false} walkingRef={isMovingRef} />
     </group>
   )

@@ -8,7 +8,7 @@ import { Button } from '../../components/Button'
 import { NotificationBell } from '../../components/NotificationBell'
 import { getMoodById } from '../../data/moods'
 import { ONLINE_USERS } from '../../data/onlineUsers'
-import { gardenPresenceService } from '../../features/garden/gardenPresenceService'
+import { useGardenPlayers } from '../../hooks/useGardenPlayers'
 import { useAuth } from '../../hooks/useAuth'
 import type { MoodId } from '../../types'
 
@@ -16,12 +16,12 @@ export function HomePage() {
   const { user, setMood } = useAuth()
   const [moodModalOpen, setMoodModalOpen] = useState(false)
   const [pendingMood, setPendingMood] = useState<MoodId | null>(user?.mood ?? null)
+  const gardenMembers = useGardenPlayers()
 
   if (!user) return null
   const mood = getMoodById(user.mood ?? undefined)
   const previewAvatars = ONLINE_USERS.slice(0, 5)
   const completedCount = user.completedActivityIds.length
-  const gardenMembers = gardenPresenceService.listMembers()
 
   async function handleConfirmMood() {
     if (pendingMood) await setMood(pendingMood)

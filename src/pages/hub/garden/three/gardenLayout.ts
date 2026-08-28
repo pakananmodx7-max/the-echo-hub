@@ -21,3 +21,23 @@ export const GARDEN_OBJECTS: GardenObjectDef[] = [
 ]
 
 export const OBSTACLE_MARGIN = 0.35
+
+/**
+ * A small cluster of safe spots near the garden entrance (the exit/gate object sits at
+ * [0, 6.2]) — each is checked to sit well clear of every GARDEN_OBJECTS obstacle radius.
+ * A fresh arrival gets a random one of these instead of everyone landing on the exact
+ * same coordinates.
+ */
+export const GARDEN_SPAWN_POINTS: [number, number][] = [
+  [0, 4.6],
+  [-1.8, 4.3],
+  [1.8, 4.3],
+  [-2.6, 3.4],
+  [2.6, 3.4],
+  [0, 3.5],
+]
+
+export function pickSpawnPoint(): [number, number] {
+  const point = GARDEN_SPAWN_POINTS[Math.floor(Math.random() * GARDEN_SPAWN_POINTS.length)]
+  return [point[0], point[1]]
+}

@@ -18,13 +18,19 @@ export interface GardenAvatarConfig {
 }
 
 export interface GardenMember {
+  /** The member's publicId — never a Firebase uid (see gardenPresenceService). */
   id: string
   codename: string
   avatarId: string
+  /** Full avatar customization, when the member has published one — falls back to a mock config derived from avatarId otherwise. */
+  avatarConfig?: GardenAvatarConfig
   mood: MoodId
   online: boolean
-  /** Normalized world position within the garden, x/z in roughly [-1, 1]. */
-  position: [number, number]
+  /** World-space position/heading within the garden — same units as GARDEN_BOUND/GARDEN_OBJECTS. */
+  x: number
+  y: number
+  z: number
+  rotationY: number
 }
 
 export interface GardenChatMessage {

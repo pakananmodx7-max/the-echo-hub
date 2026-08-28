@@ -15,6 +15,95 @@
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid"
       }
+    },
+
+    "gardenPresence": {
+      ".read": "auth != null",
+      "$publicId": {
+        ".write": "auth != null && root.child('uidToPublicId').child(auth.uid).val() === $publicId",
+        ".validate": "newData.hasChildren(['publicId', 'codename', 'x', 'y', 'z', 'rotationY', 'state', 'lastChanged'])",
+        "publicId": {
+          ".validate": "newData.isString() && newData.val() === $publicId"
+        },
+        "codename": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+        },
+        "avatarId": {
+          ".validate": "!newData.exists() || newData.isString()"
+        },
+        "avatarConfig": {
+          ".validate": true
+        },
+        "mood": {
+          ".validate": "!newData.exists() || newData.isString()"
+        },
+        "x": {
+          ".validate": "newData.isNumber() && newData.val() >= -8 && newData.val() <= 8"
+        },
+        "y": {
+          ".validate": "newData.isNumber() && newData.val() >= -2 && newData.val() <= 6"
+        },
+        "z": {
+          ".validate": "newData.isNumber() && newData.val() >= -8 && newData.val() <= 8"
+        },
+        "rotationY": {
+          ".validate": "newData.isNumber() && newData.val() >= -7 && newData.val() <= 7"
+        },
+        "state": {
+          ".validate": "newData.val() === 'online' || newData.val() === 'offline'"
+        },
+        "lastChanged": {
+          ".validate": true
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+
+    "gardenChat": {
+      "messages": {
+        ".read": "auth != null",
+        ".indexOn": "createdAt",
+        "$messageId": {
+          ".write": "auth != null && !data.exists() && newData.exists() && newData.child('authorPublicId').val() === root.child('uidToPublicId').child(auth.uid).val() && (!root.child('gardenChatCooldown').child(newData.child('authorPublicId').val()).exists() || now > root.child('gardenChatCooldown').child(newData.child('authorPublicId').val()).val() + 1500)",
+          ".validate": "newData.hasChildren(['authorPublicId', 'authorCodename', 'authorAvatarId', 'kind', 'createdAt']) && newData.child('createdAt').val() === now && ((newData.child('kind').val() === 'text' && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 200) || (newData.child('kind').val() === 'song' && newData.child('song').child('title').isString() && newData.child('song').child('title').val().length <= 120 && newData.child('song').child('artist').isString() && newData.child('song').child('artist').val().length <= 120))",
+          "authorPublicId": {
+            ".validate": "newData.isString()"
+          },
+          "authorCodename": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "authorAvatarId": {
+            ".validate": "newData.isString()"
+          },
+          "kind": {
+            ".validate": "newData.val() === 'text' || newData.val() === 'song'"
+          },
+          "text": {
+            ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 200)"
+          },
+          "song": {
+            "title": { ".validate": "newData.isString() && newData.val().length <= 120" },
+            "artist": { ".validate": "newData.isString() && newData.val().length <= 120" },
+            "link": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 500)" },
+            "$other": { ".validate": false }
+          },
+          "createdAt": {
+            ".validate": true
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+
+    "gardenChatCooldown": {
+      "$publicId": {
+        ".read": "auth != null",
+        ".write": "auth != null && $publicId === root.child('uidToPublicId').child(auth.uid).val() && newData.val() === now"
+      }
     }
   }
 }
