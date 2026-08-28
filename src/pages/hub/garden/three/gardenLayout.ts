@@ -7,37 +7,259 @@ export interface GardenObjectDef {
   obstacleRadius: number
 }
 
-export const GARDEN_BOUND = 7
+// Map Improvement phase: garden footprint grew from a 7-unit half-width square (old
+// GARDEN_BOUND) to 10.5 — roughly 2.25x the walkable area — while every existing
+// interactive object keeps its id/behavior, just repositioned into the new zone layout
+// below. See the zone comments for the "Entrance → Plaza → Waterfall/Group areas" shape.
+export const GARDEN_BOUND = 10.5
 export const INTERACTION_RADIUS = 2.1
-
-export const GARDEN_OBJECTS: GardenObjectDef[] = [
-  { id: 'song-tree', position: [0, -2.5], icon: '🌳', label: 'ดู Song Tree', obstacleRadius: 0.55 },
-  { id: 'kind-word', position: [3, 1.5], icon: '🌼', label: 'ดู Kind Word Garden', obstacleRadius: 0.3 },
-  { id: 'listening-stone-1', position: [-3, 1.5], icon: '🪨', label: 'แตะ Listening Stone', obstacleRadius: 0.5 },
-  { id: 'listening-stone-2', position: [-3.4, -1.5], icon: '🪨', label: 'แตะ Listening Stone', obstacleRadius: 0.5 },
-  { id: 'bench-1', position: [2, -1.8], icon: '🪑', label: 'นั่งที่ Private Bench', obstacleRadius: 0.75 },
-  { id: 'bench-2', position: [-1.6, 2.6], icon: '🪑', label: 'นั่งที่ Private Bench', obstacleRadius: 0.75 },
-  { id: 'exit', position: [0, 6.2], icon: '🚪', label: 'ออกจากสวน', obstacleRadius: 0.4 },
-]
-
 export const OBSTACLE_MARGIN = 0.35
+
+// Ground/fog sizing lives here (not GardenScene.tsx) so it stays next to GARDEN_BOUND —
+// the walkable square's corners reach GARDEN_BOUND*sqrt(2) ≈ 14.8, so the visual ground
+// circle needs a comfortably larger radius or the far corners would poke past the grass.
+export const GARDEN_GROUND_RADIUS = 16
+export const GARDEN_FOG_NEAR = 13
+export const GARDEN_FOG_FAR = 32
+
+/**
+ * Zone A — Entrance / Spawn Garden (north, z > 5): the exit gate + a welcoming spawn
+ * cluster with a clear path south into the Plaza.
+ * Zone B — Central Social Plaza (near the origin): the main gathering point + social
+ * tables (see GROUP_TABLES) — kept close to spawn/waterfall/group areas so multiplayer
+ * still feels social rather than spread thin.
+ * Zone C — Waterfall & Quiet Garden (west, x < -6): the waterfall landmark + its quiet
+ * seating (see WATERFALL_POSITION / POOL_POSITION and the quiet-bench spots below).
+ * Zone D — Individual Reflection Area: scattered single tables (see INDIVIDUAL_TABLES) —
+ * near the waterfall, beneath the central tree, near the flower garden, and in two quiet
+ * corners, per spec, rather than clustered together.
+ * Zone E — Group Conversation Area + Zone B's social tables together (see GROUP_TABLES).
+ * Zone F — Private Bench Area: the existing bench-1/bench-2 interactive spots, moved to
+ * two separated pockets away from the busy Plaza.
+ * Zone G — Draw & Listen / Music Area: coincides with the existing Song Tree spot — no
+ * behavior change, only repositioned.
+ * Zone H — Future Activity Lawn (south, around [0, -9]): left empty on purpose.
+ */
+export const GARDEN_OBJECTS: GardenObjectDef[] = [
+  { id: 'song-tree', position: [3.4, 4.1], icon: '🌳', label: 'ดู Song Tree', obstacleRadius: 0.55 },
+  { id: 'kind-word', position: [6.6, -2.4], icon: '🌼', label: 'ดู Kind Word Garden', obstacleRadius: 0.3 },
+  { id: 'listening-stone-1', position: [-6.9, 3.0], icon: '🪨', label: 'แตะ Listening Stone', obstacleRadius: 0.5 },
+  { id: 'listening-stone-2', position: [0.4, -6.3], icon: '🪨', label: 'แตะ Listening Stone', obstacleRadius: 0.5 },
+  { id: 'bench-1', position: [7.6, -4.9], icon: '🪑', label: 'นั่งที่ Private Bench', obstacleRadius: 0.75 },
+  { id: 'bench-2', position: [-6.6, 4.9], icon: '🪑', label: 'นั่งที่ Private Bench', obstacleRadius: 0.75 },
+  { id: 'exit', position: [0, 9.8], icon: '🚪', label: 'ออกจากสวน', obstacleRadius: 0.4 },
+]
 
 /**
  * A small cluster of safe spots near the garden entrance (the exit/gate object sits at
- * [0, 6.2]) — each is checked to sit well clear of every GARDEN_OBJECTS obstacle radius.
+ * [0, 9.8]) — each is checked to sit well clear of every GARDEN_OBJECTS/decor obstacle.
  * A fresh arrival gets a random one of these instead of everyone landing on the exact
  * same coordinates.
  */
 export const GARDEN_SPAWN_POINTS: [number, number][] = [
-  [0, 4.6],
-  [-1.8, 4.3],
-  [1.8, 4.3],
-  [-2.6, 3.4],
-  [2.6, 3.4],
-  [0, 3.5],
+  [0, 7.6],
+  [-2.8, 7.1],
+  [2.8, 7.1],
+  [-4.0, 5.6],
+  [4.0, 5.6],
+  [0, 5.9],
 ]
 
 export function pickSpawnPoint(): [number, number] {
   const point = GARDEN_SPAWN_POINTS[Math.floor(Math.random() * GARDEN_SPAWN_POINTS.length)]
   return [point[0], point[1]]
 }
+
+// --- Landmarks ---------------------------------------------------------------------
+
+/** Where the waterfall's rock wall base sits — the water falls along -x, facing east. */
+export const WATERFALL_POSITION: [number, number] = [-8.9, -1.3]
+/** The pool the waterfall falls into. */
+export const POOL_POSITION: [number, number] = [-8.3, -1.3]
+export const POOL_RADIUS = 1.6
+
+export const CENTRAL_TREE_POSITION: [number, number] = [2.3, 3.3]
+export const FLOWER_ARCH_POSITION: [number, number] = [0, 5.0]
+/** Half-gap between the two flower-arch posts — the path runs between them. */
+export const FLOWER_ARCH_GAP = 1.1
+/** The pavilion/canopy over the large social table — see GROUP_TABLES' 'large' entry. */
+export const PAVILION_POSITION: [number, number] = [2.6, -4.2]
+export const PAVILION_HALF_SIZE = 1.2
+
+export const LANTERN_SPOTS: [number, number][] = [
+  [-3.8, 6.6],
+  [3.8, 6.6],
+  [-7.3, -4.0],
+  [7.3, -4.0],
+  [0, -8.8],
+  [-9.4, -3.1],
+  [-9.2, 1.7],
+  [2.4, -5.3],
+  [4.0, -3.0],
+]
+
+/** Individual seating in the quiet garden around the pool — atmosphere only, not interactive. */
+export const QUIET_BENCH_SPOTS: [number, number][] = [
+  [-7.45, 1.05],
+  [-7.24, -3.57],
+  [-6.25, -0.13],
+]
+
+// --- Tables --------------------------------------------------------------------------
+
+export type TableSize = 'individual' | 'small' | 'medium' | 'large'
+
+export interface TableSpec {
+  id: string
+  position: [number, number]
+  /** Facing angle in radians — chairs are arranged relative to this. */
+  rotation: number
+  seats: number
+  size: TableSize
+}
+
+const TABLE_OBSTACLE_RADIUS: Record<TableSize, number> = {
+  individual: 0.55,
+  small: 0.85,
+  medium: 1.05,
+  large: 1.3,
+}
+
+/**
+ * "โต๊ะเดี่ยว" — one chair each, deliberately scattered (never clustered) across the
+ * quieter parts of the garden: two by the waterfall, one beneath the central tree, one
+ * near the flower garden (Kind Word), and two in quiet corners near the entrance/south lawn.
+ */
+export const INDIVIDUAL_TABLES: TableSpec[] = [
+  { id: 'solo-waterfall-1', position: [-5.6, -4.8], rotation: 2.3, seats: 1, size: 'individual' },
+  { id: 'solo-waterfall-2', position: [-5.6, 1.6], rotation: -1.0, seats: 1, size: 'individual' },
+  { id: 'solo-tree', position: [4.6, 3.3], rotation: 0.8, seats: 1, size: 'individual' },
+  { id: 'solo-flower-garden', position: [8.3, -3.6], rotation: -0.6, seats: 1, size: 'individual' },
+  { id: 'solo-quiet-south', position: [-2.0, -6.4], rotation: 0.3, seats: 1, size: 'individual' },
+  { id: 'solo-quiet-entrance', position: [-4.4, 6.6], rotation: -0.2, seats: 1, size: 'individual' },
+]
+
+/**
+ * "โต๊ะกลุ่ม" — small (2-3), medium (4), and one large (6, capped) social table, placed
+ * around the Central Plaza / Group Conversation Area, spaced so avatars never overlap.
+ */
+export const GROUP_TABLES: TableSpec[] = [
+  { id: 'group-small-1', position: [2.4, 1.3], rotation: 0, seats: 3, size: 'small' },
+  { id: 'group-small-2', position: [-2.2, -2.4], rotation: 0.5, seats: 2, size: 'small' },
+  { id: 'group-medium-1', position: [5.4, 0.4], rotation: -0.3, seats: 4, size: 'medium' },
+  { id: 'group-medium-2', position: [-3.5, 0.3], rotation: 0.4, seats: 4, size: 'medium' },
+  { id: 'group-large-social', position: PAVILION_POSITION, rotation: 0, seats: 6, size: 'large' },
+]
+
+export function tableObstacleRadius(size: TableSize): number {
+  return TABLE_OBSTACLE_RADIUS[size]
+}
+
+// --- Collision (decorative / non-interactive obstacles) ------------------------------
+
+export interface DecorObstacle {
+  position: [number, number]
+  radius: number
+}
+
+const WATERFALL_CLIFF_OBSTACLES: DecorObstacle[] = [
+  { position: [-8.9, -4.2], radius: 1.3 },
+  { position: [-9.0, -2.0], radius: 1.3 },
+  { position: [-9.0, 0.4], radius: 1.3 },
+  { position: [-8.9, 2.6], radius: 1.3 },
+]
+
+const PAVILION_POST_OBSTACLES: DecorObstacle[] = [
+  { position: [PAVILION_POSITION[0] - PAVILION_HALF_SIZE, PAVILION_POSITION[1] - PAVILION_HALF_SIZE], radius: 0.22 },
+  { position: [PAVILION_POSITION[0] + PAVILION_HALF_SIZE, PAVILION_POSITION[1] - PAVILION_HALF_SIZE], radius: 0.22 },
+  { position: [PAVILION_POSITION[0] - PAVILION_HALF_SIZE, PAVILION_POSITION[1] + PAVILION_HALF_SIZE], radius: 0.22 },
+  { position: [PAVILION_POSITION[0] + PAVILION_HALF_SIZE, PAVILION_POSITION[1] + PAVILION_HALF_SIZE], radius: 0.22 },
+]
+
+const FLOWER_ARCH_POST_OBSTACLES: DecorObstacle[] = [
+  { position: [FLOWER_ARCH_POSITION[0] - FLOWER_ARCH_GAP, FLOWER_ARCH_POSITION[1]], radius: 0.22 },
+  { position: [FLOWER_ARCH_POSITION[0] + FLOWER_ARCH_GAP, FLOWER_ARCH_POSITION[1]], radius: 0.22 },
+]
+
+const QUIET_BENCH_OBSTACLES: DecorObstacle[] = QUIET_BENCH_SPOTS.map((position) => ({ position, radius: 0.65 }))
+
+const TABLE_OBSTACLES: DecorObstacle[] = [...INDIVIDUAL_TABLES, ...GROUP_TABLES].map((t) => ({
+  position: t.position,
+  radius: TABLE_OBSTACLE_RADIUS[t.size],
+}))
+
+/** Every non-interactive obstacle in the map — tap-to-move must route around all of these (req. #11). */
+export const GARDEN_DECOR_OBSTACLES: DecorObstacle[] = [
+  { position: POOL_POSITION, radius: POOL_RADIUS },
+  ...WATERFALL_CLIFF_OBSTACLES,
+  { position: CENTRAL_TREE_POSITION, radius: 0.65 },
+  ...PAVILION_POST_OBSTACLES,
+  ...FLOWER_ARCH_POST_OBSTACLES,
+  ...QUIET_BENCH_OBSTACLES,
+  ...TABLE_OBSTACLES,
+]
+
+// --- Paths -----------------------------------------------------------------------------
+
+export interface PathSegmentSpec {
+  position: [number, number]
+  length: number
+  width: number
+  /** Rotation around Y, radians — 0 runs along +z. */
+  rotation: number
+}
+
+interface PathWaypoints {
+  points: [number, number][]
+  width: number
+}
+
+/**
+ * Every corridor connecting the garden's zones, expressed as a short polyline rather
+ * than one long straight plane — a few waypoints per corridor reads as a gentle curve
+ * once tiled with the path texture, and avoids the "long straight empty road" the spec
+ * calls out. Converted to renderable rectangle segments by segmentsFromWaypoints below.
+ */
+const GARDEN_PATH_WAYPOINTS: PathWaypoints[] = [
+  // Entrance → Plaza (main spine)
+  { points: [[0, 9.5], [0.6, 6.6], [0, 3.6], [0, 0]], width: 1.8 },
+  // Plaza → Waterfall & Quiet Garden
+  { points: [[0, 0], [-3.4, -0.5], [-6.4, -1.1], [-8.3, -1.3]], width: 1.6 },
+  // Plaza → Group/Flower area (east)
+  { points: [[0, 0], [2.6, -0.7], [5.0, -1.6], [6.9, -2.9]], width: 1.5 },
+  // Plaza → Future Activity Lawn (south)
+  { points: [[0, 0], [0, -3.3], [0, -6.6], [0, -9.3]], width: 1.7 },
+  // Branch: Group area → Private Bench (east pocket)
+  { points: [[5.0, -1.6], [6.6, -3.3], [7.6, -4.9]], width: 1.1 },
+  // Branch: Entrance → Private Bench / Listening Stone (west pocket)
+  { points: [[0, 3.6], [-3.0, 4.4], [-6.6, 4.9]], width: 1.1 },
+  // Branch: Entrance → Song Tree / Draw & Listen corner
+  { points: [[0.6, 6.6], [3.4, 4.5]], width: 1.0 },
+  // Waterfall → its own quiet-table stubs
+  { points: [[-8.3, -1.3], [-7.3, -3.7]], width: 1.0 },
+  { points: [[-8.3, -1.3], [-6.9, 1.6]], width: 1.0 },
+]
+
+function segmentsFromWaypoints(paths: PathWaypoints[]): PathSegmentSpec[] {
+  const segments: PathSegmentSpec[] = []
+  for (const { points, width } of paths) {
+    for (let i = 0; i < points.length - 1; i++) {
+      const [x1, z1] = points[i]
+      const [x2, z2] = points[i + 1]
+      const dx = x2 - x1
+      const dz = z2 - z1
+      const length = Math.hypot(dx, dz)
+      if (length < 0.0001) continue
+      segments.push({
+        position: [(x1 + x2) / 2, (z1 + z2) / 2],
+        // Slight overlap so consecutive segments/bends don't show a visible seam.
+        length: length + width * 0.5,
+        width,
+        rotation: Math.atan2(dx, dz),
+      })
+    }
+  }
+  return segments
+}
+
+export const GARDEN_PATH_SEGMENTS: PathSegmentSpec[] = segmentsFromWaypoints(GARDEN_PATH_WAYPOINTS)

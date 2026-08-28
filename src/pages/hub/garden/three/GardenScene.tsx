@@ -4,9 +4,19 @@ import { GardenPlayer } from './GardenPlayer'
 import { RemoteGardenPlayer } from './RemoteGardenPlayer'
 import { GardenObject } from './GardenObject'
 import { GardenDecor } from './GardenDecor'
+import { GardenTables } from './GardenTables'
+import { GardenLandmarks } from './GardenLandmarks'
+import { Waterfall } from './Waterfall'
 import { TapToMoveController } from './TapToMoveController'
 import { createGrassTexture, createPathTexture } from './gardenTextures'
-import { GARDEN_OBJECTS } from './gardenLayout'
+import {
+  GARDEN_FOG_FAR,
+  GARDEN_FOG_NEAR,
+  GARDEN_GROUND_RADIUS,
+  GARDEN_OBJECTS,
+  GARDEN_PATH_SEGMENTS,
+  LANTERN_SPOTS,
+} from './gardenLayout'
 import type { GardenControls } from './useGardenControls'
 import type { GardenQualitySettings } from './useGardenQuality'
 import type { GardenAvatarConfig, GardenMember } from '../../../../features/garden/types'
@@ -25,14 +35,6 @@ interface GardenSceneProps {
   paused?: boolean
 }
 
-const LANTERN_SPOTS: [number, number][] = [
-  [-2.4, 4.2],
-  [2.4, 4.2],
-  [-4.6, -3],
-  [4.6, -3],
-  [0, -5.6],
-]
-
 function Lanterns({ glow }: { glow: boolean }) {
   return (
     <>
@@ -46,7 +48,8 @@ function Lanterns({ glow }: { glow: boolean }) {
             <sphereGeometry args={[0.16, 10, 10]} />
             <meshStandardMaterial color="#ffe9b8" emissive="#ffd27a" emissiveIntensity={1.1} />
           </mesh>
-          {glow && i < 2 ? <pointLight position={[0, 1.55, 0]} color="#ffd27a" intensity={1.1} distance={4.5} decay={2} /> : null}
+          {/* Kept deliberately small (req. #13: limited dynamic lights) even though the map grew. */}
+          {glow && i < 3 ? <pointLight position={[0, 1.55, 0]} color="#ffd27a" intensity={1.1} distance={4.5} decay={2} /> : null}
         </group>
       ))}
     </>
@@ -57,24 +60,43 @@ function Ground() {
   const grass = useMemo(() => createGrassTexture(), [])
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-      <circleGeometry args={[9, 40]} />
+      <circleGeometry args={[GARDEN_GROUND_RADIUS, 48]} />
       <meshStandardMaterial map={grass} roughness={1} />
     </mesh>
   )
 }
 
+/**
+ * Every corridor connecting the garden's zones (see GARDEN_PATH_SEGMENTS in
+ * gardenLayout.ts) — each segment reuses the SAME cached canvas texture object
+ * (createPathTexture caches it once per session) but gets its own clone so its
+ * repeat count can match its own length, keeping the tiled dirt pattern a similar
+ * density on both a 2-unit stub and a 10-unit spine segment.
+ */
 function Paths() {
-  const path = useMemo(() => createPathTexture(), [])
+  const segments = useMemo(() => {
+    const base = createPathTexture()
+    return GARDEN_PATH_SEGMENTS.map((seg) => {
+      const texture = base.clone()
+      texture.needsUpdate = true
+      texture.repeat.set(Math.max(1, Math.round(seg.width * 1.4)), Math.max(1, Math.round(seg.length * 0.9)))
+      return { seg, texture }
+    })
+  }, [])
+
   return (
     <>
-      <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[1.4, 15]} />
-        <meshStandardMaterial map={path} roughness={1} />
-      </mesh>
-      <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 2]} receiveShadow>
-        <planeGeometry args={[1.1, 11]} />
-        <meshStandardMaterial map={path} roughness={1} />
-      </mesh>
+      {segments.map(({ seg, texture }, i) => (
+        <mesh
+          key={i}
+          position={[seg.position[0], 0.006, seg.position[1]]}
+          rotation={[-Math.PI / 2, 0, seg.rotation]}
+          receiveShadow
+        >
+          <planeGeometry args={[seg.width, seg.length]} />
+          <meshStandardMaterial map={texture} roughness={1} />
+        </mesh>
+      ))}
     </>
   )
 }
@@ -100,7 +122,7 @@ export function GardenScene({
         gl={{ antialias: quality.antialias, powerPreference: 'low-power' }}
       >
         <color attach="background" args={['#fdf3df']} />
-        <fog attach="fog" args={['#fdf3df', 11, 25]} />
+        <fog attach="fog" args={['#fdf3df', GARDEN_FOG_NEAR, GARDEN_FOG_FAR]} />
         <hemisphereLight args={['#fff1d6', '#7bb894', 0.65]} />
         <directionalLight
           position={[6, 8.5, 3.5]}
@@ -119,6 +141,9 @@ export function GardenScene({
         <Paths />
         <Lanterns glow={quality.shadows} />
         <GardenDecor density={quality.decorationDensity} fireflies={quality.decorationDensity > 0.6} />
+        <Waterfall />
+        <GardenTables />
+        <GardenLandmarks />
 
         {GARDEN_OBJECTS.map((def) => (
           <GardenObject key={def.id} def={def} />

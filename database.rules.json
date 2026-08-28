@@ -38,13 +38,13 @@
           ".validate": "!newData.exists() || newData.isString()"
         },
         "x": {
-          ".validate": "newData.isNumber() && newData.val() >= -8 && newData.val() <= 8"
+          ".validate": "newData.isNumber() && newData.val() >= -12 && newData.val() <= 12"
         },
         "y": {
           ".validate": "newData.isNumber() && newData.val() >= -2 && newData.val() <= 6"
         },
         "z": {
-          ".validate": "newData.isNumber() && newData.val() >= -8 && newData.val() <= 8"
+          ".validate": "newData.isNumber() && newData.val() >= -12 && newData.val() <= 12"
         },
         "rotationY": {
           ".validate": "newData.isNumber() && newData.val() >= -7 && newData.val() <= 7"

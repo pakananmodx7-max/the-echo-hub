@@ -4,7 +4,14 @@ import * as THREE from 'three'
 import { GardenAvatar } from './GardenAvatar'
 import { lerpAngle } from './gardenMath'
 import type { GardenControls } from './useGardenControls'
-import { GARDEN_BOUND, GARDEN_OBJECTS, INTERACTION_RADIUS, OBSTACLE_MARGIN, type GardenObjectDef } from './gardenLayout'
+import {
+  GARDEN_BOUND,
+  GARDEN_DECOR_OBSTACLES,
+  GARDEN_OBJECTS,
+  INTERACTION_RADIUS,
+  OBSTACLE_MARGIN,
+  type GardenObjectDef,
+} from './gardenLayout'
 import type { GardenAvatarConfig, GardenMember } from '../../../../features/garden/types'
 
 interface GardenPlayerProps {
@@ -109,6 +116,20 @@ export function GardenPlayer({
         if (d < radius && d > 0.0001) {
           nextX = obj.position[0] + (dx / d) * radius
           nextZ = obj.position[1] + (dz / d) * radius
+        }
+      }
+
+      // Map Improvement phase: the waterfall cliff, pool, tables, pavilion posts, flower
+      // arch, and quiet-zone benches are non-interactive but still solid — same push-out
+      // logic as the interactive GARDEN_OBJECTS above.
+      for (const obstacle of GARDEN_DECOR_OBSTACLES) {
+        const radius = obstacle.radius + OBSTACLE_MARGIN
+        const dx = nextX - obstacle.position[0]
+        const dz = nextZ - obstacle.position[1]
+        const d = Math.hypot(dx, dz)
+        if (d < radius && d > 0.0001) {
+          nextX = obstacle.position[0] + (dx / d) * radius
+          nextZ = obstacle.position[1] + (dz / d) * radius
         }
       }
 

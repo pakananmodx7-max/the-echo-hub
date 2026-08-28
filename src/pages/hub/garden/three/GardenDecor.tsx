@@ -24,20 +24,26 @@ const FLOWER_COLORS = ['#ffd7e6', '#ff9fc0', '#f6f0ff', '#e0c8ff']
 export function GardenDecor({ density, fireflies }: GardenDecorProps) {
   const rand = useMemo(() => mulberry32(20260826), [])
 
+  // Radius ranges widened for the Map Improvement phase's bigger garden (GARDEN_BOUND
+  // 10.5, ground radius 16) — a bit past GARDEN_BOUND on purpose so the outer ring still
+  // reads as garden rather than bare grass, while staying clear of the Plaza/path hub
+  // near the center. Purely cosmetic scatter (no collision), same as before — it isn't
+  // zone-aware, so an occasional bush near a table/path edge is an accepted trade-off,
+  // same as the original design.
   const bushSpots = useMemo(() => {
-    const count = Math.max(2, Math.round(9 * density))
+    const count = Math.max(2, Math.round(14 * density))
     return Array.from({ length: count }, () => {
       const angle = rand() * Math.PI * 2
-      const radius = 2.6 + rand() * 5.4
+      const radius = 3.5 + rand() * 10.5
       return [Math.cos(angle) * radius, Math.sin(angle) * radius] as [number, number]
     })
   }, [density, rand])
 
   const flowerSpots = useMemo(() => {
-    const count = Math.max(3, Math.round(22 * density))
+    const count = Math.max(3, Math.round(32 * density))
     return Array.from({ length: count }, () => {
       const angle = rand() * Math.PI * 2
-      const radius = 1.8 + rand() * 6.4
+      const radius = 2.5 + rand() * 12
       return [Math.cos(angle) * radius, Math.sin(angle) * radius, Math.floor(rand() * FLOWER_COLORS.length)] as [
         number,
         number,
@@ -47,17 +53,17 @@ export function GardenDecor({ density, fireflies }: GardenDecorProps) {
   }, [density, rand])
 
   const stoneSpots = useMemo(() => {
-    const count = Math.max(2, Math.round(7 * density))
+    const count = Math.max(2, Math.round(10 * density))
     return Array.from({ length: count }, () => {
       const angle = rand() * Math.PI * 2
-      const radius = 3 + rand() * 5.2
+      const radius = 4 + rand() * 10.5
       return [Math.cos(angle) * radius, Math.sin(angle) * radius, rand() * Math.PI] as [number, number, number]
     })
   }, [density, rand])
 
   return (
     <>
-      <Instances limit={40} range={bushSpots.length * 3}>
+      <Instances limit={45} range={bushSpots.length * 3}>
         <icosahedronGeometry args={[0.32, 0]} />
         <meshStandardMaterial roughness={0.85} />
         {bushSpots.map(([x, z], i) => (
