@@ -31,6 +31,15 @@ export interface AuthUser {
   onboardingComplete: boolean
   completedActivityIds: string[]
   createdAt: string
+  /** ISO timestamp of the last time `mood` changed, from any source (daily check-in or a manual Profile edit). */
+  moodUpdatedAt: string | null
+  /** ECHO Points running total — personal motivation only, never a leaderboard. See src/features/rewards. */
+  totalPoints: number
+  /** Consecutive Bangkok-calendar days with a completed daily check-in. */
+  currentStreak: number
+  bestStreak: number
+  /** YYYY-MM-DD (Bangkok-local) of the last completed daily check-in — the source of truth for "has today's check-in happened", never inferred from localStorage. */
+  lastCheckinDate: string | null
 }
 
 export interface RandomMission {

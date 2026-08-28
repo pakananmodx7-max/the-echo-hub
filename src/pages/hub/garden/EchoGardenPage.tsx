@@ -11,6 +11,8 @@ import { DEFAULT_GARDEN_AVATAR_CONFIG } from '../../../data/gardenAvatarOptions'
 import { DEFAULT_GARDEN_TRACK } from '../../../data/gardenTracks'
 import { useGardenPresence } from '../../../hooks/useGardenPresence'
 import { useGardenPlayers } from '../../../hooks/useGardenPlayers'
+import { awardDailyMission } from '../../../features/rewards/rewardsService'
+import { getBangkokDateString } from '../../../lib/thailandDate'
 import { GardenLoadingScreen } from './GardenLoadingScreen'
 import { Garden2DFallback } from './Garden2DFallback'
 import { GardenErrorBoundary } from './GardenErrorBoundary'
@@ -34,6 +36,9 @@ const GardenScene = lazy(() =>
 )
 
 type Panel = 'chat' | 'online' | 'activities' | 'settings' | 'song' | 'kind-word' | 'stone' | 'bench' | null
+
+/** How long a student must stay in the Garden before the daily "เข้า ECHO GARDEN" mission counts. */
+const GARDEN_MISSION_DWELL_MS = 45_000
 
 export function EchoGardenPage() {
   const navigate = useNavigate()
@@ -79,6 +84,17 @@ export function EchoGardenPage() {
       navigate('/hub/garden/studio', { replace: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  // Daily "เข้า ECHO GARDEN" mission — awarded after staying a little while, not just
+  // opening the page and immediately leaving (see the 16-section spec's "avoid accidental
+  // farming" requirement). Cleared on unmount, so leaving early never awards it.
+  useEffect(() => {
+    if (!user?.id) return
+    const timer = window.setTimeout(() => {
+      void awardDailyMission(user.id, 'garden', getBangkokDateString())
+    }, GARDEN_MISSION_DWELL_MS)
+    return () => window.clearTimeout(timer)
   }, [user?.id])
 
   if (!user) return null

@@ -1,6 +1,9 @@
 import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { authService } from '../features/auth/authService'
 import { presenceService } from '../features/presence/presenceService'
+import { awardDailyMission } from '../features/rewards/rewardsService'
+import type { MissionId } from '../features/rewards/missionCatalog'
+import { getBangkokDateString } from '../lib/thailandDate'
 import type { AuthUser, MoodId } from '../types'
 
 interface AuthContextValue {
@@ -15,7 +18,21 @@ interface AuthContextValue {
   setMood: (mood: MoodId) => Promise<AuthUser>
   completeOnboarding: () => Promise<AuthUser>
   completeActivity: (activityId: string) => Promise<AuthUser>
+  /** The gentle daily mood check-in (see DailyCheckinModal) — sets mood via the normal
+   * path (Echo Space/Garden/publicProfile all update as already supported) AND, exactly
+   * once per Bangkok calendar day, awards the check-in mission and advances the streak. */
+  completeDailyCheckin: (mood: MoodId) => Promise<AuthUser>
   resetDemoData: () => void
+}
+
+/** Maps an existing lifetime-activity id (see completeActivity, already wired into Send a
+ * Song / Say It Today / Hear Someone / Friend Quest) to the daily mission it also counts
+ * toward — reuses those pages' real completion events instead of adding new ones. */
+const ACTIVITY_TO_DAILY_MISSION: Partial<Record<string, MissionId>> = {
+  'say-it-today': 'kindword',
+  'send-song': 'music',
+  'hear-someone': 'hearwithheart',
+  'friend-bond': 'friendbond',
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -71,6 +88,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const completeActivity = useCallback(async (activityId: string) => {
     const u = await authService.markActivityComplete(activityId)
     setUser(u)
+    const missionId = ACTIVITY_TO_DAILY_MISSION[activityId]
+    // Best-effort, fire-and-forget: a reward hiccup must never fail the activity
+    // completion itself — the realtime users/{uid} listener will pick up the points once
+    // the transaction lands.
+    if (missionId && u.id) void awardDailyMission(u.id, missionId, getBangkokDateString())
+    return u
+  }, [])
+
+  const completeDailyCheckin = useCallback(async (mood: MoodId) => {
+    const u = await authService.updateUser({ mood })
+    setUser(u)
+    presenceService.updateMood(mood)
+    if (u.id) void awardDailyMission(u.id, 'checkin', getBangkokDateString())
     return u
   }, [])
 
@@ -91,9 +121,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMood,
       completeOnboarding,
       completeActivity,
+      completeDailyCheckin,
       resetDemoData,
     }),
-    [user, loading, login, register, logout, setCodename, setMood, completeOnboarding, completeActivity, resetDemoData],
+    [
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      setCodename,
+      setMood,
+      completeOnboarding,
+      completeActivity,
+      completeDailyCheckin,
+      resetDemoData,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

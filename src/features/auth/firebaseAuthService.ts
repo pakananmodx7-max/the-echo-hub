@@ -6,7 +6,7 @@ import {
   signOut,
   type User as FirebaseUser,
 } from 'firebase/auth'
-import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
+import { Timestamp, doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
 import { getFirebaseAuth, getFirebaseFirestore } from '../../lib/firebase'
 import type { AuthUser } from '../../types'
 import type { AuthService } from './authService'
@@ -19,6 +19,12 @@ interface UserDoc {
   onboardingComplete: boolean
   completedActivityIds: string[]
   createdAt: string
+  /** Timestamp on read, serverTimestamp() FieldValue on write — see updateUser. */
+  moodUpdatedAt?: unknown
+  totalPoints?: number
+  currentStreak?: number
+  bestStreak?: number
+  lastCheckinDate?: string | null
 }
 
 function randomPublicId(): string {
@@ -41,6 +47,11 @@ function toAuthUser(fbUser: FirebaseUser, docData: UserDoc): AuthUser {
     onboardingComplete: docData.onboardingComplete ?? false,
     completedActivityIds: docData.completedActivityIds ?? [],
     createdAt: docData.createdAt,
+    moodUpdatedAt: docData.moodUpdatedAt instanceof Timestamp ? docData.moodUpdatedAt.toDate().toISOString() : null,
+    totalPoints: docData.totalPoints ?? 0,
+    currentStreak: docData.currentStreak ?? 0,
+    bestStreak: docData.bestStreak ?? 0,
+    lastCheckinDate: docData.lastCheckinDate ?? null,
   }
 }
 
@@ -76,6 +87,10 @@ async function createUserDoc(uid: string): Promise<UserDoc> {
     onboardingComplete: false,
     completedActivityIds: [],
     createdAt: new Date().toISOString(),
+    totalPoints: 0,
+    currentStreak: 0,
+    bestStreak: 0,
+    lastCheckinDate: null,
   }
   await setDoc(doc(getFirebaseFirestore(), 'users', uid), docData)
   return docData
@@ -199,7 +214,12 @@ export class FirebaseAuthService implements AuthService {
     const docPatch: Partial<UserDoc> = {}
     if ('codename' in patch) docPatch.codename = patch.codename ?? null
     if ('avatarId' in patch) docPatch.avatarId = patch.avatarId ?? null
-    if ('mood' in patch) docPatch.mood = patch.mood ?? null
+    if ('mood' in patch) {
+      docPatch.mood = patch.mood ?? null
+      // Stamped from any mood change — the daily check-in AND a manual Profile edit both
+      // go through this same path, so both keep this timestamp accurate.
+      docPatch.moodUpdatedAt = serverTimestamp()
+    }
     if ('onboardingComplete' in patch) docPatch.onboardingComplete = !!patch.onboardingComplete
     if ('completedActivityIds' in patch) docPatch.completedActivityIds = patch.completedActivityIds ?? []
 

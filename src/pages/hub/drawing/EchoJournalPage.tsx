@@ -6,7 +6,9 @@ import { MoodPicker } from '../../../components/MoodPicker'
 import { SharedDrawingCanvas, type DrawingCanvasHandle } from '../../../components/drawing/SharedDrawingCanvas'
 import { getMoodById } from '../../../data/moods'
 import { journalService } from '../../../features/journal/journalService'
+import { awardDailyMission } from '../../../features/rewards/rewardsService'
 import { useAuth } from '../../../hooks/useAuth'
+import { getBangkokDateString } from '../../../lib/thailandDate'
 import type { JournalEntry, MoodId } from '../../../types'
 
 type View = 'list' | 'new'
@@ -43,6 +45,9 @@ export function EchoJournalPage() {
     })
     setEntries((prev) => [entry, ...prev])
     setView('list')
+    // A real save (a drawing was actually made and kept) is the completion event for the
+    // daily "ECHO Journal" mission — never just opening the page.
+    void awardDailyMission(user.id, 'journal', getBangkokDateString())
   }
 
   if (!user) return null

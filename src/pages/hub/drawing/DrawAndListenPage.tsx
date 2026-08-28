@@ -5,7 +5,9 @@ import { StepProgress } from '../../../components/drawing/StepProgress'
 import { randomPrompt } from '../../../data/drawPrompts'
 import { randomMission } from '../../../data/listeningMissions'
 import { journalService } from '../../../features/journal/journalService'
+import { awardDailyMission } from '../../../features/rewards/rewardsService'
 import { useAuth } from '../../../hooks/useAuth'
+import { getBangkokDateString } from '../../../lib/thailandDate'
 import type { DrawListenPartner, MoodId } from '../../../types'
 import { PartnerStep } from './steps/PartnerStep'
 import { DrawPromptStep } from './steps/DrawPromptStep'
@@ -81,6 +83,9 @@ export function DrawAndListenPage() {
   function handleSave(mood: MoodId | null, reflection: string) {
     if (drawing) {
       journalService.addEntry(userId, { dataUrl: drawing, mood, reflection, source: 'draw-and-listen' })
+      // Same completion event as ECHO Journal's own save — this flow saves into the same
+      // journal, so it counts toward the same daily mission (never on discard).
+      void awardDailyMission(userId, 'journal', getBangkokDateString())
     }
     setDrawing(null)
     goNextAfterSaveDecision()

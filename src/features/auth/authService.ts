@@ -80,6 +80,11 @@ class LocalAuthService implements AuthService {
       onboardingComplete: false,
       completedActivityIds: [],
       createdAt: new Date().toISOString(),
+      moodUpdatedAt: null,
+      totalPoints: 0,
+      currentStreak: 0,
+      bestStreak: 0,
+      lastCheckinDate: null,
     }
     users[normalized] = { password, user }
     writeUsers(users)
@@ -106,6 +111,11 @@ class LocalAuthService implements AuthService {
         onboardingComplete: false,
         completedActivityIds: [],
         createdAt: new Date().toISOString(),
+        moodUpdatedAt: null,
+        totalPoints: 0,
+        currentStreak: 0,
+        bestStreak: 0,
+        lastCheckinDate: null,
       }
       account = { password, user }
       users[normalized] = account

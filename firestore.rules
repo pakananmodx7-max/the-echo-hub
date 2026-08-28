@@ -22,11 +22,85 @@ service cloud.firestore {
     }
 
     // Private per-user document (codename, avatarId, mood, onboarding state, completed
-    // activities, and the publicId pointer). Only the owning account may read or write
-    // it. Email is intentionally never stored here — Firebase Auth already owns it — so
-    // it can never leak through this collection even if a rule were misconfigured.
+    // activities, the publicId pointer, and the ECHO Points summary cache — totalPoints/
+    // currentStreak/bestStreak/lastCheckinDate). Only the owning account may ever read or
+    // write it. Email is intentionally never stored here — Firebase Auth already owns it —
+    // so it can never leak through this collection even if a rule were misconfigured.
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && request.auth.uid == uid;
+      // Registration writes the whole doc in one shot (see createUserDoc) — no field
+      // restrictions needed here, same as the create rule's original unrestricted intent.
+      allow create: if request.auth != null && request.auth.uid == uid;
+
+      // Every existing free-form field (codename, avatarId, mood, onboardingComplete,
+      // completedActivityIds, moodUpdatedAt, publicId, ...) may still change freely by the
+      // owner exactly as before — UNLESS this write touches the points/streak cache, in
+      // which case it must be a plausible single reward, not an arbitrary value. The
+      // rewards ledger below (users/{uid}/rewards/{type}_{date}, immutable + create-once)
+      // is what actually makes a duplicate/farmed reward impossible; this is a lightweight
+      // second guard against a client just writing this cache field directly.
+      allow update: if request.auth != null && request.auth.uid == uid && (
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['totalPoints', 'currentStreak', 'bestStreak', 'lastCheckinDate'])
+        ||
+        (
+          // A non-checkin daily mission: only totalPoints moves, by exactly one valid
+          // reward amount (5 or 10 — the only two point values in the mission catalog).
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['currentStreak', 'bestStreak', 'lastCheckinDate'])
+          && request.resource.data.totalPoints is number
+          && (request.resource.data.totalPoints - resource.data.get('totalPoints', 0) == 5
+              || request.resource.data.totalPoints - resource.data.get('totalPoints', 0) == 10)
+        )
+        ||
+        (
+          // The daily check-in specifically: +5 points, and lastCheckinDate must actually
+          // advance to a day not already recorded — blocks replaying today's streak bump.
+          request.resource.data.totalPoints is number
+          && request.resource.data.totalPoints - resource.data.get('totalPoints', 0) == 5
+          && request.resource.data.lastCheckinDate is string
+          && request.resource.data.lastCheckinDate != resource.data.get('lastCheckinDate', '')
+          && request.resource.data.currentStreak is number
+          && request.resource.data.bestStreak is number
+          && request.resource.data.bestStreak >= request.resource.data.currentStreak
+        )
+      );
+
+      allow delete: if false;
+
+      // Per-day mission/points breakdown — powers the Me tab's daily checklist, weekly
+      // view, and history. Never deleted (spec: "do not delete old progress"). This
+      // document is NOT itself what prevents duplicate rewards (the rewards ledger below
+      // is), so it only needs owner-scoping and basic shape validation.
+      match /dailyProgress/{date} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create, update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.pointsEarned is number
+          && request.resource.data.missionsCompleted is list
+          && request.resource.data.checkinCompleted is bool;
+        allow delete: if false;
+      }
+
+      // The authoritative, append-only reward ledger — THIS is what actually prevents a
+      // mission reward from ever being granted twice. The document id is
+      // {missionType}_{YYYY-MM-DD}, so Firestore's own create-only-if-absent semantics
+      // make a second award for the same person/day/type structurally impossible, from
+      // any device, any number of refreshes/tabs, regardless of client-side state.
+      match /rewards/{rewardId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.type in
+            ['checkin', 'garden', 'journal', 'friendbond', 'kindword', 'music', 'hearwithheart']
+          && request.resource.data.date is string
+          && rewardId == request.resource.data.type + '_' + request.resource.data.date
+          && (
+            (request.resource.data.type in ['journal', 'friendbond', 'hearwithheart']
+              && request.resource.data.points == 10)
+            || (request.resource.data.type in ['checkin', 'garden', 'kindword', 'music']
+              && request.resource.data.points == 5)
+          );
+        allow update, delete: if false;
+      }
     }
 
     // Public-facing profile (codename, avatarId, mood only) keyed by a random publicId

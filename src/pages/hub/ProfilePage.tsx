@@ -6,10 +6,12 @@ import { Card } from '../../components/Card'
 import { Modal } from '../../components/Modal'
 import { Button } from '../../components/Button'
 import { MoodPicker } from '../../components/MoodPicker'
+import { EchoPointsSection } from '../../components/EchoPointsSection'
 import { AVATARS } from '../../data/avatars'
 import { generateCodename } from '../../data/codenames'
 import { getMoodById } from '../../data/moods'
 import { useAuth } from '../../hooks/useAuth'
+import { getBangkokDateString } from '../../lib/thailandDate'
 import type { MoodId } from '../../types'
 
 const ALL_ACTIVITIES = [
@@ -22,7 +24,7 @@ const ALL_ACTIVITIES = [
 
 export function ProfilePage() {
   const navigate = useNavigate()
-  const { user, logout, setCodename, setMood, resetDemoData } = useAuth()
+  const { user, logout, setCodename, setMood, completeDailyCheckin, resetDemoData } = useAuth()
   const [editOpen, setEditOpen] = useState(false)
   const [moodOpen, setMoodOpen] = useState(false)
   const [privacyOpen, setPrivacyOpen] = useState(false)
@@ -49,7 +51,12 @@ export function ProfilePage() {
   }
 
   async function handleSaveMood() {
-    if (pendingMood) await setMood(pendingMood)
+    if (!pendingMood) return
+    // If today's daily check-in hasn't happened yet, saving a mood here also completes
+    // it (same +5 points / streak as the dedicated check-in modal) — one mood-selection
+    // action, not two separate flows asking the same question.
+    if (user!.lastCheckinDate !== getBangkokDateString()) await completeDailyCheckin(pendingMood)
+    else await setMood(pendingMood)
     setMoodOpen(false)
   }
 
@@ -85,6 +92,13 @@ export function ProfilePage() {
             แก้ไข Codename และ Avatar
           </Button>
         </Card>
+
+        <EchoPointsSection
+          onOpenCheckin={() => {
+            setPendingMood(user.mood)
+            setMoodOpen(true)
+          }}
+        />
 
         <Card>
           <p className="font-semibold text-ink">🌱 กิจกรรมของฉัน</p>

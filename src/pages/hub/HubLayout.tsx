@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { Outlet } from 'react-router-dom'
 import { ActiveChatReminderBanner } from '../../components/ActiveChatReminderBanner'
 import { BottomNav } from '../../components/BottomNav'
+import { DailyCheckinModal } from '../../components/DailyCheckinModal'
 import { IncomingChatRequestModal } from '../../components/IncomingChatRequestModal'
 import { NewMessageToast } from '../../components/NewMessageToast'
 import { SentRequestWatcher } from '../../components/SentRequestWatcher'
@@ -31,6 +32,7 @@ export function HubLayout() {
       <SentRequestWatcher />
       <ActiveChatReminderBanner />
       <NewMessageToast />
+      <DailyCheckinModal />
     </div>
   )
 }
