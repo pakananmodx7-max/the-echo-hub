@@ -62,7 +62,7 @@ export function useChatRequest() {
         setLocalSentIds((prev) => new Set(prev).add(target.id))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ส่งคำขอไม่สำเร็จ ลองใหม่อีกครั้ง')
+      setError(err instanceof Error ? err.message : 'ส่งคำขอคุยไม่สำเร็จ ลองใหม่อีกครั้ง')
     } finally {
       setSending(false)
     }

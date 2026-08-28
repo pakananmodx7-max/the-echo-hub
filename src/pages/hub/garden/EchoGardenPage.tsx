@@ -27,6 +27,7 @@ import { useGardenControls, useGardenControlMode } from './three/useGardenContro
 import { useGardenQuality } from './three/useGardenQuality'
 import { useGardenMusic } from './useGardenMusic'
 import { GARDEN_OBJECTS, pickSpawnPoint, type GardenObjectDef } from './three/gardenLayout'
+import type { GardenMember } from '../../../features/garden/types'
 
 const GardenScene = lazy(() =>
   import('./three/GardenScene').then((m) => ({ default: m.GardenScene })),
@@ -86,6 +87,25 @@ export function EchoGardenPage() {
   const currentUser = { id: user.id, codename: user.codename ?? 'You', avatarId: user.avatarId }
   // Garden-facing identity — publicId only, never the raw Firebase uid (shared with everyone in the garden).
   const gardenUser = { id: user.publicId, codename: user.codename ?? 'You', avatarId: user.avatarId }
+
+  // Every "ขอคุยส่วนตัว" entry point in the Garden (nearby-player card, Online panel,
+  // Private Bench) funnels through here before reaching the existing Phase 3
+  // chatRequest.request() — same target shape, same modal, same Firestore-backed flow.
+  // This only double-checks that the Garden roster resolved a real identifier (a
+  // GardenMember.id is always the target's publicId, sourced from /gardenPresence — see
+  // gardenPresenceService.ts) and logs *why* if it ever didn't, without ever logging the
+  // publicId/uid/email itself.
+  function handleGardenChatRequest(member: GardenMember) {
+    if (!member.id || member.id === gardenUser.id) {
+      console.error('[garden] chat request blocked before opening the confirm modal', {
+        hasTargetId: !!member.id,
+        targetIsSelf: member.id === gardenUser.id,
+      })
+      window.alert('ส่งคำขอคุยไม่สำเร็จ ลองใหม่อีกครั้ง')
+      return
+    }
+    chatRequest.request(member)
+  }
 
   function handleSelectObject(id: GardenObjectDef['id']) {
     if (id === 'exit') {
@@ -186,7 +206,7 @@ export function EchoGardenPage() {
                 <GardenNearbyPlayerCard
                   member={nearestPlayer}
                   onGreet={() => window.alert(`ทักทาย ${nearestPlayer.codename} แล้ว 👋`)}
-                  onRequestChat={() => chatRequest.request(nearestPlayer)}
+                  onRequestChat={() => handleGardenChatRequest(nearestPlayer)}
                 />
               ) : null}
             </div>
@@ -221,7 +241,7 @@ export function EchoGardenPage() {
             <GardenOnlinePanel
               members={members}
               onGreet={(m) => window.alert(`ทักทาย ${m.codename} แล้ว 👋`)}
-              onRequestChat={(m) => chatRequest.request(m)}
+              onRequestChat={handleGardenChatRequest}
             />
           </div>
         </div>
@@ -265,7 +285,7 @@ export function EchoGardenPage() {
         members={members}
         onRequestMember={(m) => {
           setPanel(null)
-          chatRequest.request(m)
+          handleGardenChatRequest(m)
         }}
       />
 

@@ -211,7 +211,21 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
         hasFromPublicId: !!from.publicId,
         hasToPublicId: !!to.publicId,
       })
-      throw new Error('โปรไฟล์ของคุณยังโหลดไม่สมบูรณ์ กรุณาลองใหม่อีกครั้ง')
+      throw new Error('ส่งคำขอคุยไม่สำเร็จ ลองใหม่อีกครั้ง')
+    }
+
+    // Confirms the id we were handed as "the other person" actually resolves to a real,
+    // currently-published account before ever writing a chatRequests doc. Every onboarded
+    // account keeps publicProfiles/{publicId} in sync (see syncPublicProfile in
+    // firebaseAuthService.ts), so a miss here means whatever called sendRequest resolved
+    // the wrong identifier for its target (e.g. something other than that person's real
+    // publicId) — never the publicId/uid itself, just whether it resolved.
+    const targetProfileSnap = await getDoc(doc(db, 'publicProfiles', to.publicId))
+    if (!targetProfileSnap.exists()) {
+      console.error('[chat] sendRequest blocked: target identity did not resolve to a published profile', {
+        targetProfileFound: false,
+      })
+      throw new Error('ส่งคำขอคุยไม่สำเร็จ ลองใหม่อีกครั้ง')
     }
 
     // Self-diagnosing: confirm the publicId we're about to send as `fromPublicId` still
@@ -261,6 +275,7 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
     } catch (err) {
       const code = err instanceof FirestoreError ? err.code : 'unknown'
       console.error('[chat] sendRequest write denied', {
+        category: code === 'permission-denied' ? 'permission_denied' : 'unknown_write_error',
         code,
         message: err instanceof Error ? err.message : String(err),
         requestId: id,
@@ -271,6 +286,10 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
           const existing = await getDoc(ref)
           const existingStatus = existing.exists() ? (existing.data().status as string | undefined) : null
           if (existingStatus === 'pending' || existingStatus === 'accepted') {
+            console.error('[chat] sendRequest denied: duplicate pending request already exists for this pair', {
+              category: 'duplicate_pending_request',
+              existingStatus,
+            })
             throw new Error('มีคำขอที่ยังไม่ได้ตอบรับอยู่แล้ว')
           }
           // Ruled out "a live request already exists" — the follow-up read itself succeeded
@@ -278,14 +297,15 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
           // create was denied for some other reason — most likely the live Firestore rules
           // don't yet match firestore.rules in this repo. Surfaced here, not in the UI.
           console.error('[chat] sendRequest denied for a reason other than an existing pending/accepted request', {
+            category: 'permission_denied_other',
             existingDocExists: existing.exists(),
             existingStatus,
           })
         } catch (readErr) {
           if (readErr instanceof Error && readErr.message === 'มีคำขอที่ยังไม่ได้ตอบรับอยู่แล้ว') throw readErr
-          console.error('[chat] sendRequest follow-up read also failed', readErr)
+          console.error('[chat] sendRequest follow-up read also failed', { category: 'followup_read_failed', readErr })
         }
-        throw new Error('ส่งคำขอไม่สำเร็จ ลองใหม่อีกครั้ง')
+        throw new Error('ส่งคำขอคุยไม่สำเร็จ ลองใหม่อีกครั้ง')
       }
       throw err
     }
