@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/Button'
 import { AmbientBackground } from '../components/AmbientBackground'
+import { ForgotPasswordModal } from '../components/ForgotPasswordModal'
 import { useAuth } from '../hooks/useAuth'
 
 export function LoginPage() {
@@ -11,6 +12,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -82,9 +84,7 @@ export function LoginPage() {
           <button
             type="button"
             className="text-sm font-medium text-lavender-600"
-            onClick={() =>
-              window.alert('ฟีเจอร์นี้จะเปิดใช้งานเมื่อเชื่อมต่อระบบจริงในเวอร์ชันถัดไป')
-            }
+            onClick={() => setForgotPasswordOpen(true)}
           >
             ลืมรหัสผ่าน?
           </button>
@@ -97,6 +97,8 @@ export function LoginPage() {
           สมัครสมาชิก
         </Link>
       </p>
+
+      <ForgotPasswordModal open={forgotPasswordOpen} onClose={() => setForgotPasswordOpen(false)} />
     </div>
   )
 }

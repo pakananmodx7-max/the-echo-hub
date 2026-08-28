@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged as onFirebaseAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   type User as FirebaseUser,
@@ -165,6 +166,24 @@ export class FirebaseAuthService implements AuthService {
       this.cachedUser = user
       return user
     } catch (err) {
+      throw mapAuthError(err)
+    }
+  }
+
+  async resetPassword(email: string): Promise<void> {
+    const normalized = email.trim().toLowerCase()
+    if (!normalized) {
+      throw new Error('กรุณากรอกอีเมล')
+    }
+    try {
+      await sendPasswordResetEmail(getFirebaseAuth(), normalized)
+    } catch (err) {
+      const code = (err as { code?: string })?.code ?? ''
+      // Never reveal whether an account exists for this address — a nonexistent email
+      // resolves exactly like a real send. (Firebase projects with email enumeration
+      // protection enabled already do this server-side; this guards the same behavior
+      // client-side regardless of that project setting.)
+      if (code === 'auth/user-not-found') return
       throw mapAuthError(err)
     }
   }

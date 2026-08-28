@@ -16,6 +16,8 @@ export interface AuthService {
   onAuthStateChanged(callback: (user: AuthUser | null) => void): () => void
   register(email: string, password: string): Promise<AuthUser>
   login(email: string, password: string): Promise<AuthUser>
+  /** Sends a password-reset email. Must never reveal whether the address has an account. */
+  resetPassword(email: string): Promise<void>
   logout(): Promise<void>
   updateUser(patch: Partial<AuthUser>): Promise<AuthUser>
   markActivityComplete(activityId: string): Promise<AuthUser>
@@ -111,6 +113,12 @@ class LocalAuthService implements AuthService {
     }
     localStorage.setItem(SESSION_KEY, normalized)
     return account.user
+  }
+
+  async resetPassword(_email: string): Promise<void> {
+    // No real email backend in demo mode — inert, but resolves exactly like the real
+    // Firebase flow so the UI's success state and "never reveal whether an account
+    // exists" behavior both hold true here too.
   }
 
   async logout(): Promise<void> {
