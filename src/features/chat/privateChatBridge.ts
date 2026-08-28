@@ -530,10 +530,43 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
   async endConversation(roomId: string, endedByPublicId: string): Promise<void> {
     const db = getFirebaseFirestore()
     const roomRef = doc(db, 'chatRooms', roomId)
-    const roomSnap = await getDoc(roomRef)
-    if (!roomSnap.exists()) throw new Error('ไม่พบห้องสนทนานี้แล้ว')
+
+    let roomSnap
+    try {
+      roomSnap = await getDoc(roomRef)
+    } catch (err) {
+      const code = err instanceof FirestoreError ? err.code : 'unknown'
+      if (code === 'permission-denied') {
+        console.error('[endConversation] permission_denied', { roomId, phase: 'read' })
+      } else {
+        console.error('[endConversation] unexpected_error', {
+          roomId,
+          phase: 'read',
+          code,
+          message: err instanceof Error ? err.message : String(err),
+        })
+      }
+      throw new Error('จบการสนทนาไม่สำเร็จ กรุณาลองอีกครั้ง')
+    }
+
+    if (!roomSnap.exists()) {
+      console.error('[endConversation] room_not_found', { roomId })
+      throw new Error('ไม่พบห้องสนทนานี้แล้ว')
+    }
+
     const room = roomSnap.data()
-    if (room.status !== 'active') return // already ended (e.g. the other side just ended it) — nothing to do
+    if (room.status !== 'active') {
+      // Already ended — most commonly because the other participant ended it a moment
+      // earlier, or this is a stale retry of a click that already succeeded. The desired
+      // end state already holds and the realtime room listener already reflects it, so
+      // this is a benign no-op, not a failure — never surfaced to the user as an error.
+      console.log('[endConversation] invalid_room_state', { roomId, status: room.status })
+      return
+    }
+    if (typeof room.requestId !== 'string' || !room.requestId) {
+      console.error('[endConversation] invalid_room_state', { roomId, hasRequestId: false })
+      throw new Error('จบการสนทนาไม่สำเร็จ กรุณาลองอีกครั้ง')
+    }
 
     const batch = writeBatch(db)
     batch.update(roomRef, { status: 'ended', endedAt: serverTimestamp(), endedBy: endedByPublicId })
@@ -545,7 +578,25 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
       status: 'expired',
       updatedAt: serverTimestamp(),
     })
-    await batch.commit()
+
+    console.log('[endConversation] write_started', { roomId })
+    try {
+      await batch.commit()
+    } catch (err) {
+      const code = err instanceof FirestoreError ? err.code : 'unknown'
+      if (code === 'permission-denied') {
+        console.error('[endConversation] permission_denied', { roomId, phase: 'write' })
+      } else {
+        console.error('[endConversation] unexpected_error', {
+          roomId,
+          phase: 'write',
+          code,
+          message: err instanceof Error ? err.message : String(err),
+        })
+      }
+      throw new Error('จบการสนทนาไม่สำเร็จ กรุณาลองอีกครั้ง')
+    }
+    console.log('[endConversation] success', { roomId })
   }
 
   subscribeActiveRooms(publicId: string, callback: (rooms: ChatRoomRecord[]) => void): () => void {

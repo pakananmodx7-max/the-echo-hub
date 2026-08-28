@@ -37,7 +37,13 @@ export function useChatRoomMessages(roomId: string | undefined) {
   }
 
   async function end() {
-    if (!roomId || !user?.publicId) return
+    if (!roomId || !user?.publicId) {
+      // Never resolve silently here — a missing roomId/publicId means the write was
+      // never even attempted, and the caller needs to know that rather than assume
+      // success (see [endConversation] diagnostics in PrivateChatPage.tsx).
+      console.error('[endConversation] invalid_room_state', { hasRoomId: !!roomId, hasPublicId: !!user?.publicId })
+      throw new Error('จบการสนทนาไม่สำเร็จ กรุณาลองอีกครั้ง')
+    }
     await privateChatBridge.endConversation(roomId, user.publicId)
   }
 

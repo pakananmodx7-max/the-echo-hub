@@ -48,6 +48,10 @@ export function PrivateChatPage() {
   const [darkMode, setDarkMode] = useState(readStoredDarkMode)
   const [endConfirmOpen, setEndConfirmOpen] = useState(false)
   const [ending, setEnding] = useState(false)
+  const [endError, setEndError] = useState<string | null>(null)
+  // Synchronous guard against a second invocation landing before the setEnding(true)
+  // re-render has actually disabled the button (state updates aren't synchronous).
+  const endingRef = useRef(false)
   const [navConfirmOpen, setNavConfirmOpen] = useState(false)
   const navResolveRef = useRef<((leave: boolean) => void) | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -146,12 +150,22 @@ export function PrivateChatPage() {
   }
 
   async function handleConfirmEnd() {
+    if (endingRef.current) return
+    endingRef.current = true
+    console.log('[endConversation] clicked', { roomId })
+    setEndError(null)
     setEnding(true)
     try {
       await end()
+      // Only the success path closes the modal — a failure must leave it open, with the
+      // button re-enabled and an error shown, per the "never silently fail" requirement.
+      setEndConfirmOpen(false)
+    } catch (err) {
+      console.error('[endConversation] confirm_failed', err instanceof Error ? err.message : String(err))
+      setEndError('จบการสนทนาไม่สำเร็จ กรุณาลองอีกครั้ง')
     } finally {
       setEnding(false)
-      setEndConfirmOpen(false)
+      endingRef.current = false
     }
   }
 
@@ -189,7 +203,10 @@ export function PrivateChatPage() {
         {isActive ? (
           <button
             type="button"
-            onClick={() => setEndConfirmOpen(true)}
+            onClick={() => {
+              setEndError(null)
+              setEndConfirmOpen(true)
+            }}
             className="shrink-0 rounded-full px-3 py-2 text-xs font-semibold active:scale-95 transition"
             style={{ background: 'var(--chat-danger-bg)', color: 'var(--chat-danger-text)' }}
           >
@@ -303,6 +320,11 @@ export function PrivateChatPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-bold">ต้องการจบการสนทนานี้หรือไม่?</h2>
+            {endError ? (
+              <p className="mt-3 text-sm font-medium" style={{ color: 'var(--chat-danger-text)' }}>
+                {endError}
+              </p>
+            ) : null}
             <div className="mt-5 flex flex-col gap-2.5">
               <button
                 type="button"
@@ -311,11 +333,14 @@ export function PrivateChatPage() {
                 className="w-full rounded-2xl px-5 py-3.5 font-semibold text-[15px] transition active:scale-[0.98] disabled:opacity-50"
                 style={{ background: 'var(--chat-danger-bg)', color: 'var(--chat-danger-text)' }}
               >
-                จบการสนทนา
+                {ending ? 'กำลังจบการสนทนา...' : 'จบการสนทนา'}
               </button>
               <button
                 type="button"
-                onClick={() => setEndConfirmOpen(false)}
+                onClick={() => {
+                  setEndError(null)
+                  setEndConfirmOpen(false)
+                }}
                 disabled={ending}
                 className="w-full rounded-2xl px-5 py-3.5 font-semibold text-[15px] transition active:scale-[0.98] disabled:opacity-50"
                 style={{ background: 'transparent', color: 'var(--chat-text-soft)' }}
