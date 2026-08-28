@@ -8,11 +8,14 @@ const DEFAULT_CAMERA_DIST = 6.2
 export interface GardenControls {
   keysRef: { current: Set<string> }
   joystickRef: { current: { x: number; y: number } }
+  /** Absolute camera orbit yaw, driven ONLY by user drag/recenter — never by avatar rotation or movement. */
   cameraYawRef: { current: number }
   cameraPitchRef: { current: number }
   cameraDistRef: { current: number }
   /** World-space [x, z] the avatar is currently walking toward, or null. */
   moveTargetRef: { current: [number, number] | null }
+  /** Set true to smoothly ease cameraYawRef toward the avatar's current facing — only ever set by an explicit "recenter camera" button press, never automatically. */
+  cameraRecenterRequestRef: { current: boolean }
 }
 
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'])
@@ -28,10 +31,14 @@ export function useGardenControls(): GardenControls {
     () => ({
       keysRef: { current: new Set<string>() },
       joystickRef: { current: { x: 0, y: 0 } },
-      cameraYawRef: { current: 0 },
+      // Matches the avatar's initial facing (see GardenPlayer's yawRef default) so the
+      // very first frame frames the same view as before — every frame after that, this
+      // value only ever changes from user drag or an explicit recenter request.
+      cameraYawRef: { current: Math.PI },
       cameraPitchRef: { current: 0 },
       cameraDistRef: { current: DEFAULT_CAMERA_DIST },
       moveTargetRef: { current: null },
+      cameraRecenterRequestRef: { current: false },
     }),
     [],
   )

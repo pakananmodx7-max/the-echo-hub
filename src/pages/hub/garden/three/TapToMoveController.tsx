@@ -14,7 +14,7 @@ const MAX_CAMERA_DIST = 10
 
 /**
  * Owns every pointer gesture on the garden canvas: single-finger drag
- * rotates/tilts the camera, pinch zooms, and a quick tap/click raycasts
+ * rotates/tilts the camera, pinch (or mouse wheel) zooms, and a quick tap/click raycasts
  * onto the ground plane to set a tap-to-move target. Lives inside the R3F
  * <Canvas> (via useThree) so it has direct access to the camera for
  * raycasting, and attaches native listeners to the real canvas DOM element
@@ -99,6 +99,15 @@ export function TapToMoveController({ controls }: TapToMoveControllerProps) {
       lastSingleRef.current = { x: e.clientX, y: e.clientY }
     }
 
+    function onWheel(e: WheelEvent) {
+      e.preventDefault()
+      controls.cameraDistRef.current = THREE.MathUtils.clamp(
+        controls.cameraDistRef.current + e.deltaY * 0.0035,
+        MIN_CAMERA_DIST,
+        MAX_CAMERA_DIST,
+      )
+    }
+
     function onPointerUp(e: PointerEvent) {
       const wasSingle = pointersRef.current.size === 1
       pointersRef.current.delete(e.pointerId)
@@ -127,11 +136,13 @@ export function TapToMoveController({ controls }: TapToMoveControllerProps) {
     dom.addEventListener('pointermove', onPointerMove)
     dom.addEventListener('pointerup', onPointerUp)
     dom.addEventListener('pointercancel', onPointerUp)
+    dom.addEventListener('wheel', onWheel, { passive: false })
     return () => {
       dom.removeEventListener('pointerdown', onPointerDown)
       dom.removeEventListener('pointermove', onPointerMove)
       dom.removeEventListener('pointerup', onPointerUp)
       dom.removeEventListener('pointercancel', onPointerUp)
+      dom.removeEventListener('wheel', onWheel)
     }
   }, [camera, gl, controls, raycaster, groundPlane])
 

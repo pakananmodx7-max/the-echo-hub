@@ -22,6 +22,12 @@ const WALK_SPEED = 3.2
 const ARRIVE_DISTANCE = 0.18
 const BASE_ELEVATION = 0.58
 const PLAYER_INTERACTION_RADIUS = 1.6
+// Frame-rate independent damping rates (see THREE.MathUtils.damp) — chosen gently on
+// purpose: this is specifically to avoid the motion-sickness-inducing snaps/oscillation a
+// naive per-frame lerp can produce when frame time varies (e.g. mobile).
+const CAMERA_FOLLOW_LAMBDA = 3.2
+const CAMERA_RECENTER_LAMBDA = 4
+const CAMERA_RECENTER_EPSILON = 0.01
 
 export function GardenPlayer({
   controls,
@@ -118,8 +124,22 @@ export function GardenPlayer({
       groupRef.current.rotation.y = yawRef.current
     }
 
-    // spherical follow camera: yaw + pitch + distance all driven by user gesture refs
-    const camYaw = yawRef.current + controls.cameraYawRef.current
+    // Explicit, one-shot "recenter camera behind the avatar" — only ever runs while a user
+    // has pressed the optional recenter button (never automatically on move/stop/turn/
+    // arrive), and stops itself once the yaw is close enough so it doesn't fight a
+    // subsequent drag.
+    if (controls.cameraRecenterRequestRef.current) {
+      controls.cameraYawRef.current = lerpAngle(controls.cameraYawRef.current, yawRef.current, 1 - Math.exp(-CAMERA_RECENTER_LAMBDA * delta))
+      if (Math.abs(((yawRef.current - controls.cameraYawRef.current + Math.PI) % (Math.PI * 2)) - Math.PI) < CAMERA_RECENTER_EPSILON) {
+        controls.cameraRecenterRequestRef.current = false
+      }
+    }
+
+    // Spherical orbit camera: yaw/pitch/distance come ONLY from user drag, pinch, and the
+    // optional recenter above — deliberately never from the avatar's own rotation or
+    // movement/destination direction, so walking never spins the camera (motion-sickness
+    // fix). Only the orbit CENTER (posRef, i.e. the player's position) follows movement.
+    const camYaw = controls.cameraYawRef.current
     const elevation = THREE.MathUtils.clamp(BASE_ELEVATION + controls.cameraPitchRef.current, 0.22, 1.25)
     const camDist = controls.cameraDistRef.current
     const horizR = camDist * Math.cos(elevation)
@@ -129,7 +149,11 @@ export function GardenPlayer({
       0.9 + vertR,
       posRef.current.z - Math.cos(camYaw) * horizR,
     )
-    camera.position.lerp(camPos.current, 0.12)
+    // Gentle, delta-based position follow (never snaps, frame-rate independent) — the
+    // camera's orientation itself is set directly from camYaw/elevation above, never eased,
+    // so there is nothing here that can introduce unwanted rotation drift.
+    const followAlpha = 1 - Math.exp(-CAMERA_FOLLOW_LAMBDA * delta)
+    camera.position.lerp(camPos.current, followAlpha)
     camTarget.current.set(posRef.current.x, 0.9, posRef.current.z)
     camera.lookAt(camTarget.current)
 

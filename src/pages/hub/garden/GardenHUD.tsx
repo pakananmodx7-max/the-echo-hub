@@ -20,6 +20,8 @@ interface GardenHUDProps {
   onOpenOnline: () => void
   onOpenSettings: () => void
   onExit: () => void
+  /** Optional, explicit "ease the camera back behind me" action — never triggered automatically (see the camera-motion-sickness fix in GardenPlayer.tsx). */
+  onRecenterCamera: () => void
   music: {
     track: GardenTrack
     status: GardenMusicStatus
@@ -46,7 +48,7 @@ const NAV_BUTTONS: {
 ]
 
 export function GardenHUD(props: GardenHUDProps) {
-  const { controls, controlMode, memberCount, interaction, onInteract, music } = props
+  const { controls, controlMode, memberCount, interaction, onInteract, onRecenterCamera, music } = props
 
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col justify-between">
@@ -69,8 +71,19 @@ export function GardenHUD(props: GardenHUDProps) {
         ) : null}
 
         <div className="flex w-full items-end justify-between px-4">
-          <div className="pointer-events-auto sm:hidden">
-            {controlMode === 'joystick' ? <GardenJoystick controls={controls} /> : <div className="h-[88px] w-[88px]" />}
+          <div className="flex items-end gap-2">
+            <div className="pointer-events-auto sm:hidden">
+              {controlMode === 'joystick' ? <GardenJoystick controls={controls} /> : <div className="h-[88px] w-[88px]" />}
+            </div>
+            <button
+              type="button"
+              onClick={onRecenterCamera}
+              aria-label="จัดกล้องตามตัวละคร"
+              title="จัดกล้องตามตัวละคร"
+              className="pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/70 text-lg text-ink-soft shadow-sm backdrop-blur-md transition active:scale-95"
+            >
+              <span aria-hidden>◎</span>
+            </button>
           </div>
 
           <div className="pointer-events-auto ml-auto flex gap-1 rounded-3xl bg-white/70 p-1.5 shadow-card backdrop-blur-md">

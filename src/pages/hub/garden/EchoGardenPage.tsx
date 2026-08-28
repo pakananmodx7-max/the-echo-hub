@@ -200,6 +200,9 @@ export function EchoGardenPage() {
                 onOpenOnline={() => setPanel('online')}
                 onOpenSettings={() => setPanel('settings')}
                 onExit={() => navigate('/hub')}
+                onRecenterCamera={() => {
+                  controls.cameraRecenterRequestRef.current = true
+                }}
                 music={musicProps}
               />
               {nearestPlayer ? (
