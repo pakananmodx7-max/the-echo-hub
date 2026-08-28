@@ -11,6 +11,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -19,6 +20,7 @@ import {
 } from 'firebase/firestore'
 import { firebaseConfigured, getFirebaseAuth, getFirebaseFirestore } from '../../lib/firebase'
 import type { MoodId } from '../../types'
+import { CHAT_REQUEST_ERRORS, getEffectiveRequestStatus } from './chatRequestState'
 
 export type ChatRequestStatus = 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired'
 export type ChatRoomStatus = 'active' | 'ended'
@@ -52,6 +54,7 @@ export interface ChatRequestRecord {
   roomId: string | null
   createdAtMs: number | null
   updatedAtMs: number | null
+  respondedAtMs: number | null
 }
 
 export interface ChatRoomProfile {
@@ -112,6 +115,8 @@ export interface PrivateChatBridge {
   declineRequest(requestId: string): Promise<void>
   subscribeIncomingRequests(publicId: string, callback: (requests: ChatRequestRecord[]) => void): () => void
   subscribeSentRequests(publicId: string, callback: (requests: ChatRequestRecord[]) => void): () => void
+  /** Every request where this account is the receiver, in ANY status — unlike subscribeIncomingRequests (pending only), this resolves the Notification Center's real, current state for a request instead of trusting a possibly-stale notification snapshot. */
+  subscribeReceivedRequests(publicId: string, callback: (requests: ChatRequestRecord[]) => void): () => void
   subscribeRoom(roomId: string, callback: (room: ChatRoomRecord | null) => void): () => void
   subscribeRoomMessages(roomId: string, callback: (messages: ChatMessage[]) => void): () => void
   sendMessage(roomId: string, senderPublicId: string, text: string): Promise<void>
@@ -133,10 +138,17 @@ function toMillis(value: unknown): number | null {
   return value instanceof Timestamp ? value.toMillis() : null
 }
 
-function toRequestRecord(snap: QueryDocumentSnapshot<DocumentData>): ChatRequestRecord {
-  const data = snap.data()
+/** Thrown by acceptRequest/declineRequest/cancelRequest when the request is no longer pending by the time the write is attempted (already accepted/declined/cancelled/expired by a race, or a stale click on an old popup) — callers should show CHAT_REQUEST_ERRORS.staleRequest ("คำขอนี้สิ้นสุดแล้ว") rather than a generic failure. */
+export class ChatRequestStaleError extends Error {
+  constructor() {
+    super(CHAT_REQUEST_ERRORS.staleRequest)
+    this.name = 'ChatRequestStaleError'
+  }
+}
+
+function toRequestRecordData(id: string, data: DocumentData): ChatRequestRecord {
   return {
-    id: snap.id,
+    id,
     fromPublicId: data.fromPublicId,
     toPublicId: data.toPublicId,
     fromCodename: data.fromCodename,
@@ -149,7 +161,12 @@ function toRequestRecord(snap: QueryDocumentSnapshot<DocumentData>): ChatRequest
     roomId: data.roomId ?? null,
     createdAtMs: toMillis(data.createdAt),
     updatedAtMs: toMillis(data.updatedAt),
+    respondedAtMs: toMillis(data.respondedAt),
   }
+}
+
+function toRequestRecord(snap: QueryDocumentSnapshot<DocumentData>): ChatRequestRecord {
+  return toRequestRecordData(snap.id, snap.data())
 }
 
 function toRoomRecord(snap: QueryDocumentSnapshot<DocumentData> | { id: string; data: () => DocumentData }): ChatRoomRecord {
@@ -199,6 +216,7 @@ async function findUnreadNotificationIds(
 
 class FirebasePrivateChatBridge implements PrivateChatBridge {
   async sendRequest(from: ChatParticipant, to: ChatParticipant): Promise<void> {
+    console.log('[chatRequest] send_started', { hasFromPublicId: !!from.publicId, hasToPublicId: !!to.publicId })
     const db = getFirebaseFirestore()
 
     // Prerequisite check, before ever touching chatRequests: the create rule requires
@@ -206,12 +224,15 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
     // server). Log which piece is missing — publicId is the intentionally-shareable id,
     // never uid/email — so a real gap is visible in the console instead of surfacing only
     // as an opaque "Missing or insufficient permissions." from Firestore.
-    if (!from.publicId || !to.publicId) {
-      console.error('[chat] sendRequest blocked before write: incomplete participant data', {
+    if (!from.publicId || !to.publicId || !from.codename || !to.codename || from.publicId === to.publicId) {
+      console.error('[chatRequest] invalid_payload', {
         hasFromPublicId: !!from.publicId,
         hasToPublicId: !!to.publicId,
+        hasFromCodename: !!from.codename,
+        hasToCodename: !!to.codename,
+        isSelfRequest: !!from.publicId && from.publicId === to.publicId,
       })
-      throw new Error('ส่งคำขอคุยไม่สำเร็จ ลองใหม่อีกครั้ง')
+      throw new Error(CHAT_REQUEST_ERRORS.permissionDenied)
     }
 
     // Confirms the id we were handed as "the other person" actually resolves to a real,
@@ -222,11 +243,10 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
     // publicId) — never the publicId/uid itself, just whether it resolved.
     const targetProfileSnap = await getDoc(doc(db, 'publicProfiles', to.publicId))
     if (!targetProfileSnap.exists()) {
-      console.error('[chat] sendRequest blocked: target identity did not resolve to a published profile', {
-        targetProfileFound: false,
-      })
-      throw new Error('ส่งคำขอคุยไม่สำเร็จ ลองใหม่อีกครั้ง')
+      console.error('[chatRequest] profile_not_found', {})
+      throw new Error(CHAT_REQUEST_ERRORS.permissionDenied)
     }
+    console.log('[chatRequest] target_profile_ok', {})
 
     // Self-diagnosing: confirm the publicId we're about to send as `fromPublicId` still
     // matches what's canonically stored on our own account right now. This is the one
@@ -239,10 +259,10 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
       const ownSnap = await getDoc(doc(db, 'users', authUid))
       const canonicalPublicId = ownSnap.exists() ? (ownSnap.data().publicId as string | undefined) : undefined
       if (canonicalPublicId !== from.publicId) {
-        console.error('[chat] sendRequest blocked: own publicId is stale vs. users/{uid}', {
+        console.error('[chatRequest] invalid_payload', {
+          reason: 'stale_own_public_id',
           ownUserDocExists: ownSnap.exists(),
           ownUserDocHasPublicId: !!canonicalPublicId,
-          publicIdsMatch: canonicalPublicId === from.publicId,
         })
         throw new Error('โปรไฟล์ไม่ตรงกัน กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่')
       }
@@ -250,6 +270,35 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
 
     const id = pairId(from.publicId, to.publicId)
     const ref = doc(db, 'chatRequests', id)
+
+    // Resolves the CURRENT real state before ever attempting a write — this is what lets
+    // us tell a genuine still-live request apart from a stale/legacy pending one that
+    // should be treated as expired (see getEffectiveRequestStatus/PENDING_EXPIRY_MS),
+    // instead of guessing a category from a denied write after the fact.
+    let existingSnap
+    try {
+      existingSnap = await getDoc(ref)
+    } catch (err) {
+      console.error('[chatRequest] unexpected_error', {
+        phase: 'preflight_read',
+        message: err instanceof Error ? err.message : String(err),
+      })
+      throw new Error(CHAT_REQUEST_ERRORS.permissionDenied)
+    }
+
+    if (existingSnap.exists()) {
+      const existing = toRequestRecordData(existingSnap.id, existingSnap.data())
+      const effectiveStatus = getEffectiveRequestStatus(existing)
+      if (effectiveStatus === 'pending') {
+        console.error('[chatRequest] duplicate_pending', { requestId: id })
+        throw new Error(CHAT_REQUEST_ERRORS.duplicatePending)
+      }
+      if (effectiveStatus === 'accepted') {
+        console.error('[chatRequest] duplicate_pending', { requestId: id, reason: 'active_conversation' })
+        throw new Error(CHAT_REQUEST_ERRORS.activeConversation)
+      }
+    }
+    console.log('[chatRequest] payload_valid', { requestId: id, isReopen: existingSnap.exists() })
 
     const payload = {
       fromPublicId: from.publicId,
@@ -266,49 +315,33 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
       updatedAt: serverTimestamp(),
     }
 
-    // No pre-read needed for the happy path: firestore.rules already routes this write to
-    // its `create` rule for a brand-new pair or its `update` (re-open) rule for a finished
-    // one. On denial we do one follow-up read (see below) purely to log which case this
-    // was — it can never widen what the rules themselves allow.
+    // firestore.rules routes this write to its `create` rule for a brand-new pair, its
+    // reopen-from-terminal-state branch for a finished one, or (for a pair whose only
+    // existing doc is a stale-but-technically-still-pending one, per the check above) the
+    // stale-pending reopen branch — see firestore.rules for the exact conditions each
+    // requires. A denial here past our own pre-checks means the deployed rules don't yet
+    // match this repo's firestore.rules.
     try {
       await setDoc(ref, payload)
     } catch (err) {
       const code = err instanceof FirestoreError ? err.code : 'unknown'
-      console.error('[chat] sendRequest write denied', {
-        category: code === 'permission-denied' ? 'permission_denied' : 'unknown_write_error',
-        code,
-        message: err instanceof Error ? err.message : String(err),
-        requestId: id,
-      })
-
-      if (code === 'permission-denied') {
-        try {
-          const existing = await getDoc(ref)
-          const existingStatus = existing.exists() ? (existing.data().status as string | undefined) : null
-          if (existingStatus === 'pending' || existingStatus === 'accepted') {
-            console.error('[chat] sendRequest denied: duplicate pending request already exists for this pair', {
-              category: 'duplicate_pending_request',
-              existingStatus,
-            })
-            throw new Error('มีคำขอที่ยังไม่ได้ตอบรับอยู่แล้ว')
-          }
-          // Ruled out "a live request already exists" — the follow-up read itself succeeded
-          // (so read access and the prerequisite profile fields are fine), meaning the
-          // create was denied for some other reason — most likely the live Firestore rules
-          // don't yet match firestore.rules in this repo. Surfaced here, not in the UI.
-          console.error('[chat] sendRequest denied for a reason other than an existing pending/accepted request', {
-            category: 'permission_denied_other',
-            existingDocExists: existing.exists(),
-            existingStatus,
-          })
-        } catch (readErr) {
-          if (readErr instanceof Error && readErr.message === 'มีคำขอที่ยังไม่ได้ตอบรับอยู่แล้ว') throw readErr
-          console.error('[chat] sendRequest follow-up read also failed', { category: 'followup_read_failed', readErr })
-        }
-        throw new Error('ส่งคำขอคุยไม่สำเร็จ ลองใหม่อีกครั้ง')
+      if (code === 'unavailable' || code === 'deadline-exceeded') {
+        console.error('[chatRequest] unexpected_error', { category: 'network', code, requestId: id })
+        throw new Error(CHAT_REQUEST_ERRORS.network)
       }
-      throw err
+      if (code === 'permission-denied') {
+        console.error('[chatRequest] permission_denied', { code, requestId: id, wasReopenAttempt: existingSnap.exists() })
+      } else {
+        console.error('[chatRequest] unexpected_error', {
+          code,
+          requestId: id,
+          message: err instanceof Error ? err.message : String(err),
+        })
+      }
+      throw new Error(CHAT_REQUEST_ERRORS.permissionDenied)
     }
+
+    console.log('[chatRequest] send_success', { requestId: id })
 
     // Best-effort, separate write: the notifications create rule needs to read the
     // chatRequests doc above via get() to confirm it's legitimate, which only sees state
@@ -336,19 +369,35 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
 
   async cancelRequest(requestId: string): Promise<void> {
     const db = getFirebaseFirestore()
-    await updateDoc(doc(db, 'chatRequests', requestId), {
-      status: 'cancelled',
-      roomId: null,
-      updatedAt: serverTimestamp(),
-    })
+    try {
+      await updateDoc(doc(db, 'chatRequests', requestId), {
+        status: 'cancelled',
+        roomId: null,
+        updatedAt: serverTimestamp(),
+      })
+    } catch (err) {
+      const code = err instanceof FirestoreError ? err.code : 'unknown'
+      if (code === 'permission-denied') {
+        // The only way cancelling a request you sent gets denied is that it's no longer
+        // pending (the other side just accepted/declined it, or you already cancelled it
+        // from another tab) — a stale UI action, not a real failure.
+        console.log('[chatRequest] cancel_stale', { requestId })
+        throw new ChatRequestStaleError()
+      }
+      console.error('[chatRequest] unexpected_error', {
+        phase: 'cancel',
+        requestId,
+        code,
+        message: err instanceof Error ? err.message : String(err),
+      })
+      throw new Error(CHAT_REQUEST_ERRORS.permissionDenied)
+    }
   }
 
   async acceptRequest(requestId: string): Promise<string> {
     const db = getFirebaseFirestore()
     const reqRef = doc(db, 'chatRequests', requestId)
-    const snap = await getDoc(reqRef)
-    if (!snap.exists()) throw new Error('ไม่พบคำขอนี้แล้ว')
-    const data = snap.data()
+    console.log('[chatRequest] accept_started', { requestId })
 
     // A fresh, unique id per conversation session — NOT the deterministic pairId — so
     // ending this room later can never block the same two people from starting a brand
@@ -357,74 +406,142 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
     const roomId = doc(collection(db, 'chatRooms')).id
     const roomRef = doc(db, 'chatRooms', roomId)
     const notificationRef = doc(collection(db, 'notifications'))
-    const staleIds = await findUnreadNotificationIds(
-      db,
-      data.toPublicId,
-      (n) => n.type === 'incoming_chat_request' && n.requestId === requestId,
-    )
-    const batch = writeBatch(db)
-    batch.update(reqRef, { status: 'accepted', roomId, updatedAt: serverTimestamp() })
-    for (const id of staleIds) batch.update(doc(db, 'notifications', id), { read: true })
-    batch.set(roomRef, {
-      participants: [data.fromPublicId, data.toPublicId],
-      profiles: {
-        [data.fromPublicId]: { codename: data.fromCodename, avatarId: data.fromAvatarId ?? null },
-        [data.toPublicId]: { codename: data.toCodename, avatarId: data.toAvatarId ?? null },
-      },
-      requestId,
-      status: 'active' as const,
-      endedAt: null,
-      endedBy: null,
-      createdAt: serverTimestamp(),
-    })
-    // Notifies the original sender that their request was accepted — created here, in
-    // the same atomic batch as the accept + room creation, so it can never exist without
-    // a real accepted request/room behind it.
-    batch.set(notificationRef, {
-      type: 'chat_request_accepted' satisfies NotificationType,
-      ownerPublicId: data.fromPublicId,
-      fromPublicId: data.toPublicId,
-      fromCodename: data.toCodename,
-      fromAvatarId: data.toAvatarId ?? null,
-      requestId,
-      roomId,
-      preview: null,
-      read: false,
-      createdAt: serverTimestamp(),
-    })
-    await batch.commit()
+
+    let requestData: DocumentData
+    try {
+      requestData = await runTransaction(db, async (tx) => {
+        // Reading and re-checking status inside the transaction (rather than a plain
+        // getDoc before a writeBatch) is what actually prevents a race between two
+        // near-simultaneous accept/decline attempts on the same request: Firestore retries
+        // a transaction whose read set changed before it committed, so only one of two
+        // concurrent accepts ever wins — the other sees status already flipped and fails
+        // cleanly here instead of creating a second room.
+        const snap = await tx.get(reqRef)
+        if (!snap.exists() || snap.data().status !== 'pending') throw new ChatRequestStaleError()
+        const data = snap.data()
+        tx.update(reqRef, { status: 'accepted', roomId, respondedAt: serverTimestamp(), updatedAt: serverTimestamp() })
+        tx.set(roomRef, {
+          participants: [data.fromPublicId, data.toPublicId],
+          profiles: {
+            [data.fromPublicId]: { codename: data.fromCodename, avatarId: data.fromAvatarId ?? null },
+            [data.toPublicId]: { codename: data.toCodename, avatarId: data.toAvatarId ?? null },
+          },
+          requestId,
+          status: 'active' as const,
+          endedAt: null,
+          endedBy: null,
+          createdAt: serverTimestamp(),
+        })
+        // Notifies the original sender that their request was accepted — written in the
+        // same transaction as the accept + room creation, so it can never exist without a
+        // real accepted request/room behind it.
+        tx.set(notificationRef, {
+          type: 'chat_request_accepted' satisfies NotificationType,
+          ownerPublicId: data.fromPublicId,
+          fromPublicId: data.toPublicId,
+          fromCodename: data.toCodename,
+          fromAvatarId: data.toAvatarId ?? null,
+          requestId,
+          roomId,
+          preview: null,
+          read: false,
+          createdAt: serverTimestamp(),
+        })
+        return data
+      })
+    } catch (err) {
+      if (err instanceof ChatRequestStaleError) {
+        console.log('[chatRequest] accept_stale', { requestId })
+        throw err
+      }
+      const code = err instanceof FirestoreError ? err.code : 'unknown'
+      if (code === 'permission-denied') {
+        console.error('[chatRequest] accept_permission_denied', { requestId })
+      } else {
+        console.error('[chatRequest] unexpected_error', {
+          phase: 'accept',
+          requestId,
+          code,
+          message: err instanceof Error ? err.message : String(err),
+        })
+      }
+      throw new Error(CHAT_REQUEST_ERRORS.permissionDenied)
+    }
+
+    console.log('[chatRequest] accept_success', { requestId, roomId })
+    await this.clearStaleIncomingNotification(db, requestData.toPublicId, requestId)
     return roomId
   }
 
   async declineRequest(requestId: string): Promise<void> {
     const db = getFirebaseFirestore()
     const reqRef = doc(db, 'chatRequests', requestId)
-    const snap = await getDoc(reqRef)
-    if (!snap.exists()) throw new Error('ไม่พบคำขอนี้แล้ว')
-    const data = snap.data()
-
+    console.log('[chatRequest] decline_started', { requestId })
     const notificationRef = doc(collection(db, 'notifications'))
-    const staleIds = await findUnreadNotificationIds(
-      db,
-      data.toPublicId,
-      (n) => n.type === 'incoming_chat_request' && n.requestId === requestId,
-    )
-    const batch = writeBatch(db)
-    batch.update(reqRef, { status: 'declined', roomId: null, updatedAt: serverTimestamp() })
-    for (const id of staleIds) batch.update(doc(db, 'notifications', id), { read: true })
-    batch.set(notificationRef, {
-      type: 'chat_request_declined' satisfies NotificationType,
-      ownerPublicId: data.fromPublicId,
-      fromPublicId: data.toPublicId,
-      fromCodename: data.toCodename,
-      fromAvatarId: data.toAvatarId ?? null,
-      requestId,
-      roomId: null,
-      preview: null,
-      read: false,
-      createdAt: serverTimestamp(),
-    })
-    await batch.commit()
+
+    let requestData: DocumentData
+    try {
+      requestData = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(reqRef)
+        if (!snap.exists() || snap.data().status !== 'pending') throw new ChatRequestStaleError()
+        const data = snap.data()
+        tx.update(reqRef, { status: 'declined', roomId: null, respondedAt: serverTimestamp(), updatedAt: serverTimestamp() })
+        tx.set(notificationRef, {
+          type: 'chat_request_declined' satisfies NotificationType,
+          ownerPublicId: data.fromPublicId,
+          fromPublicId: data.toPublicId,
+          fromCodename: data.toCodename,
+          fromAvatarId: data.toAvatarId ?? null,
+          requestId,
+          roomId: null,
+          preview: null,
+          read: false,
+          createdAt: serverTimestamp(),
+        })
+        return data
+      })
+    } catch (err) {
+      if (err instanceof ChatRequestStaleError) {
+        console.log('[chatRequest] decline_stale', { requestId })
+        throw err
+      }
+      const code = err instanceof FirestoreError ? err.code : 'unknown'
+      if (code === 'permission-denied') {
+        console.error('[chatRequest] decline_permission_denied', { requestId })
+      } else {
+        console.error('[chatRequest] unexpected_error', {
+          phase: 'decline',
+          requestId,
+          code,
+          message: err instanceof Error ? err.message : String(err),
+        })
+      }
+      throw new Error(CHAT_REQUEST_ERRORS.permissionDenied)
+    }
+
+    console.log('[chatRequest] decline_success', { requestId })
+    await this.clearStaleIncomingNotification(db, requestData.toPublicId, requestId)
+  }
+
+  /** Best-effort: marks the receiver's own now-answered incoming_chat_request bell entry read. Never allowed to fail the accept/decline itself — the realtime chatRequests listener is already the primary, already-proven source of truth for the popup/buttons. */
+  private async clearStaleIncomingNotification(
+    db: ReturnType<typeof getFirebaseFirestore>,
+    receiverPublicId: string,
+    requestId: string,
+  ): Promise<void> {
+    try {
+      const staleIds = await findUnreadNotificationIds(
+        db,
+        receiverPublicId,
+        (n) => n.type === 'incoming_chat_request' && n.requestId === requestId,
+      )
+      if (staleIds.length === 0) return
+      const batch = writeBatch(db)
+      for (const id of staleIds) batch.update(doc(db, 'notifications', id), { read: true })
+      await batch.commit()
+    } catch (err) {
+      console.error('[chat] failed to clear stale incoming_chat_request notification', err)
+    }
   }
 
   subscribeIncomingRequests(publicId: string, callback: (requests: ChatRequestRecord[]) => void): () => void {
@@ -453,6 +570,20 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
       q,
       (snap) => callback(snap.docs.map(toRequestRecord)),
       (err) => console.error('[chat] subscribeSentRequests failed', err),
+    )
+  }
+
+  subscribeReceivedRequests(publicId: string, callback: (requests: ChatRequestRecord[]) => void): () => void {
+    const db = getFirebaseFirestore()
+    const q = query(
+      collection(db, 'chatRequests'),
+      where('toPublicId', '==', publicId),
+      orderBy('updatedAt', 'desc'),
+    )
+    return onSnapshot(
+      q,
+      (snap) => callback(snap.docs.map(toRequestRecord)),
+      (err) => console.error('[chat] subscribeReceivedRequests failed', err),
     )
   }
 
@@ -655,6 +786,10 @@ class NoopPrivateChatBridge implements PrivateChatBridge {
     return () => {}
   }
   subscribeSentRequests(_publicId: string, callback: (requests: ChatRequestRecord[]) => void): () => void {
+    callback([])
+    return () => {}
+  }
+  subscribeReceivedRequests(_publicId: string, callback: (requests: ChatRequestRecord[]) => void): () => void {
     callback([])
     return () => {}
   }

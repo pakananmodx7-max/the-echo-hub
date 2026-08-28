@@ -18,6 +18,14 @@
       ]
     },
     {
+      "collectionGroup": "chatRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "toPublicId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "notifications",
       "queryScope": "COLLECTION",
       "fields": [

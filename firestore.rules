@@ -46,8 +46,15 @@ service cloud.firestore {
     // points at the CURRENT/latest chatRooms session (see below); once that room is ended
     // this doc is flipped to 'expired' so the same pair can start a fresh session later.
     match /chatRequests/{requestId} {
-      allow read: if isSignedIn() && resource != null
-        && (myPublicId() == resource.data.fromPublicId || myPublicId() == resource.data.toPublicId);
+      // `resource == null` (the document doesn't exist yet) is allowed through so a
+      // client can safely probe "does a request already exist for this pair" before ever
+      // writing — sendRequest does exactly this to decide create vs. reopen vs. duplicate
+      // without guessing from a denied write. This leaks nothing: a nonexistent doc has no
+      // data, and the id is only derivable from two people's publicIds, which any signed-in
+      // student can already resolve via publicProfiles. An EXISTING request's data is still
+      // readable only by its two participants, exactly as before.
+      allow read: if isSignedIn()
+        && (resource == null || myPublicId() == resource.data.fromPublicId || myPublicId() == resource.data.toPublicId);
 
       // First-ever request between this pair.
       allow create: if isSignedIn()
@@ -62,13 +69,40 @@ service cloud.firestore {
         // a freshly created, still-active room (verified independently by chatRooms'
         // own create rule below) — its exact value isn't re-derivable here since chat
         // rooms use unique per-session ids, not a value computable from this document.
+        // respondedAt records exactly when the receiver acted, separate from updatedAt.
         (myPublicId() == resource.data.toPublicId
           && resource.data.status == 'pending'
           && request.resource.data.fromPublicId == resource.data.fromPublicId
           && request.resource.data.toPublicId == resource.data.toPublicId
+          && request.resource.data.respondedAt == request.time
           && (
             (request.resource.data.status == 'declined' && request.resource.data.roomId == null)
             || (request.resource.data.status == 'accepted' && request.resource.data.roomId is string)
+          ))
+        ||
+        // A `pending` request that has sat unanswered past the expiry window may be
+        // replaced by a fresh pending request in one step, by either former participant —
+        // production had 21-hour-old pending requests permanently denying a new request
+        // between the same pair ("Missing or insufficient permissions."), because no other
+        // branch here ever let a still-`pending` document change. The 60-minute window
+        // must match PENDING_EXPIRY_MS in src/features/chat/chatRequestState.ts. Falls back
+        // to updatedAt for a legacy document that predates createdAt being stored — using
+        // .get(key, default) rather than resource.data.createdAt directly, since accessing
+        // a genuinely-missing map key throws an evaluation error instead of just being falsy.
+        (resource.data.status == 'pending'
+          && (myPublicId() == resource.data.fromPublicId || myPublicId() == resource.data.toPublicId)
+          && request.resource.data.fromPublicId == myPublicId()
+          && request.resource.data.toPublicId != myPublicId()
+          && (request.resource.data.toPublicId == resource.data.fromPublicId
+              || request.resource.data.toPublicId == resource.data.toPublicId)
+          && request.resource.data.status == 'pending'
+          && request.resource.data.roomId == null
+          && (
+            (resource.data.get('createdAt', null) is timestamp
+              && request.time > resource.data.get('createdAt', null) + duration.value(60, 'm'))
+            || (!(resource.data.get('createdAt', null) is timestamp)
+                && resource.data.get('updatedAt', null) is timestamp
+                && request.time > resource.data.get('updatedAt', null) + duration.value(60, 'm'))
           ))
         ||
         // Sender cancels their own still-pending request.

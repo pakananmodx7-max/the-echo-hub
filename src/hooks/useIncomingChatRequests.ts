@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { privateChatBridge, type ChatRequestRecord } from '../features/chat/privateChatBridge'
+import { isPendingRequest } from '../features/chat/chatRequestState'
 import { firebaseConfigured } from '../lib/firebase'
 import { useAuth } from './useAuth'
 
@@ -9,15 +10,29 @@ import { useAuth } from './useAuth'
  */
 export function useIncomingChatRequests() {
   const { user } = useAuth()
-  const [requests, setRequests] = useState<ChatRequestRecord[]>([])
+  const [rawRequests, setRawRequests] = useState<ChatRequestRecord[]>([])
+  // Re-filters on a minute-scale tick, not just on a new Firestore snapshot — a request
+  // that ages past PENDING_EXPIRY_MS without anyone touching it must still stop being
+  // actionable (Accept/Decline) on its own, per the pending-expiry policy.
+  const [, setTick] = useState(0)
 
   useEffect(() => {
     if (!firebaseConfigured || !user?.publicId) {
-      setRequests([])
+      setRawRequests([])
       return
     }
-    return privateChatBridge.subscribeIncomingRequests(user.publicId, setRequests)
+    return privateChatBridge.subscribeIncomingRequests(user.publicId, setRawRequests)
   }, [user?.publicId])
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 60_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // The Firestore query already filters status == 'pending' server-side, but that alone
+  // can't tell a live request from a stale legacy one (e.g. 21 hours old) — this client
+  // filter is what actually stops a request from being actionable once it's aged out.
+  const requests = rawRequests.filter((r) => isPendingRequest(r))
 
   async function accept(requestId: string): Promise<string> {
     return privateChatBridge.acceptRequest(requestId)

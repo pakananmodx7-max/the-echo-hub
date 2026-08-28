@@ -1,11 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Avatar } from '../../components/Avatar'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { PageHeader } from '../../components/PageHeader'
-import { privateChatBridge, type ChatNotification } from '../../features/chat/privateChatBridge'
+import {
+  privateChatBridge,
+  type ChatNotification,
+  type ChatRequestRecord,
+  type ChatRequestStatus,
+} from '../../features/chat/privateChatBridge'
+import { getEffectiveRequestStatus, REQUEST_STATUS_LABEL } from '../../features/chat/chatRequestState'
+import { useAuth } from '../../hooks/useAuth'
 import { useNotifications } from '../../hooks/useNotifications'
+import { useReceivedChatRequests } from '../../hooks/useReceivedChatRequests'
+import { firebaseConfigured } from '../../lib/firebase'
 import { formatRelativeTime } from '../../lib/relativeTime'
 import { notificationText } from '../../lib/notificationText'
 
@@ -24,12 +33,38 @@ interface DisplayItem {
  * (the realtime popup, the chat itself), so acting from any place is equivalent.
  * Consecutive `new_message` notifications for the same room are grouped into one card so
  * an active back-and-forth conversation doesn't spam the list with one row per message.
+ *
+ * A notification is written once, at send time, and never updated afterwards — so for an
+ * `incoming_chat_request` card this page never trusts the notification's own type to mean
+ * "still actionable". It resolves the real, current chatRequests doc via requestById
+ * (built from useReceivedChatRequests + a sent-requests subscription) and renders off that
+ * instead, so an already-answered/expired/cancelled request can never show live
+ * Accept/Decline buttons here.
  */
 export function NotificationsPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { notifications, unreadCount, markRead, markAllRead } = useNotifications()
+  const receivedRequests = useReceivedChatRequests()
+  const [sentRequests, setSentRequests] = useState<ChatRequestRecord[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [errorId, setErrorId] = useState<string | null>(null)
+  const [errorText, setErrorText] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!firebaseConfigured || !user?.publicId) {
+      setSentRequests([])
+      return
+    }
+    return privateChatBridge.subscribeSentRequests(user.publicId, setSentRequests)
+  }, [user?.publicId])
+
+  const requestById = useMemo(() => {
+    const map = new Map<string, ChatRequestRecord>()
+    for (const r of receivedRequests) map.set(r.id, r)
+    for (const r of sentRequests) map.set(r.id, r)
+    return map
+  }, [receivedRequests, sentRequests])
 
   const items = useMemo<DisplayItem[]>(() => {
     const result: DisplayItem[] = []
@@ -62,12 +97,14 @@ export function NotificationsPage() {
     if (!n.requestId) return
     setBusyId(n.id)
     setErrorId(null)
+    setErrorText(null)
     try {
       const roomId = await privateChatBridge.acceptRequest(n.requestId)
       void Promise.all(ids.map((id) => markRead(id)))
       navigate(`/hub/talk/chat/${roomId}`)
-    } catch {
+    } catch (err) {
       setErrorId(n.id)
+      setErrorText(err instanceof Error ? err.message : 'ทำรายการไม่สำเร็จ ลองใหม่')
     } finally {
       setBusyId(null)
     }
@@ -78,11 +115,13 @@ export function NotificationsPage() {
     if (!n.requestId) return
     setBusyId(n.id)
     setErrorId(null)
+    setErrorText(null)
     try {
       await privateChatBridge.declineRequest(n.requestId)
       void Promise.all(ids.map((id) => markRead(id)))
-    } catch {
+    } catch (err) {
       setErrorId(n.id)
+      setErrorText(err instanceof Error ? err.message : 'ทำรายการไม่สำเร็จ ลองใหม่')
     } finally {
       setBusyId(null)
     }
@@ -92,6 +131,14 @@ export function NotificationsPage() {
     e.stopPropagation()
     void Promise.all(ids.map((id) => markRead(id)))
     navigate(`/hub/talk/chat/${roomId}`)
+  }
+
+  /** Real, current state of an incoming_chat_request notification's linked request — null while the underlying subscriptions are still loading their first snapshot. */
+  function resolveIncomingRequest(n: ChatNotification): { status: ChatRequestStatus; roomId: string | null } | null {
+    if (!n.requestId) return null
+    const resolved = requestById.get(n.requestId)
+    if (!resolved) return null
+    return { status: getEffectiveRequestStatus(resolved), roomId: resolved.roomId }
   }
 
   return (
@@ -114,6 +161,7 @@ export function NotificationsPage() {
           <div className="flex flex-col gap-3">
             {items.map((item) => {
               const n = item.latest
+              const incoming = n.type === 'incoming_chat_request' ? resolveIncomingRequest(n) : null
               return (
                 <Card
                   key={item.key}
@@ -136,26 +184,42 @@ export function NotificationsPage() {
                       ) : null}
                       <p className="mt-1 text-xs text-ink-faint">{formatRelativeTime(n.createdAtMs)}</p>
 
-                      {errorId === n.id ? <p className="mt-2 text-xs text-pink-text">ทำรายการไม่สำเร็จ คำขอนี้อาจถูกตอบไปแล้ว</p> : null}
+                      {errorId === n.id ? <p className="mt-2 text-xs text-pink-text">{errorText}</p> : null}
 
                       {n.type === 'incoming_chat_request' ? (
-                        <div className="mt-3 flex gap-2">
-                          <Button
-                            className="!px-4 !py-2 text-xs"
-                            onClick={(e) => handleAccept(n, item.ids, e)}
-                            disabled={busyId === n.id}
-                          >
-                            รับคำขอ
-                          </Button>
-                          <Button
-                            variant="soft-pink"
-                            className="!px-4 !py-2 text-xs"
-                            onClick={(e) => handleDecline(n, item.ids, e)}
-                            disabled={busyId === n.id}
-                          >
-                            ปฏิเสธ
-                          </Button>
-                        </div>
+                        incoming === null ? null : incoming.status === 'pending' ? (
+                          <div className="mt-3 flex gap-2">
+                            <Button
+                              className="!px-4 !py-2 text-xs"
+                              onClick={(e) => handleAccept(n, item.ids, e)}
+                              disabled={busyId === n.id}
+                            >
+                              รับคำขอ
+                            </Button>
+                            <Button
+                              variant="soft-pink"
+                              className="!px-4 !py-2 text-xs"
+                              onClick={(e) => handleDecline(n, item.ids, e)}
+                              disabled={busyId === n.id}
+                            >
+                              ปฏิเสธ
+                            </Button>
+                          </div>
+                        ) : incoming.status === 'accepted' ? (
+                          <div className="mt-3 flex items-center gap-2">
+                            <span className="text-xs font-medium text-mint-text">{REQUEST_STATUS_LABEL.accepted}</span>
+                            {incoming.roomId ? (
+                              <Button
+                                className="!px-4 !py-2 text-xs"
+                                onClick={(e) => openChat(incoming.roomId!, item.ids, e)}
+                              >
+                                เข้าแชท
+                              </Button>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-ink-faint">{REQUEST_STATUS_LABEL[incoming.status]}</p>
+                        )
                       ) : (n.type === 'chat_request_accepted' || n.type === 'new_message') && n.roomId ? (
                         <div className="mt-3">
                           <Button className="!px-4 !py-2 text-xs" onClick={(e) => openChat(n.roomId!, item.ids, e)}>

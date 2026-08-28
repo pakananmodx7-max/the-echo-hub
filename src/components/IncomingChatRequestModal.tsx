@@ -33,8 +33,12 @@ export function IncomingChatRequestModal() {
     try {
       const roomId = await accept(current.id)
       navigate(`/hub/talk/chat/${roomId}`)
-    } catch {
-      setActionError('รับคำขอไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } catch (err) {
+      // A stale request (already answered elsewhere, expired, etc.) needs no special
+      // handling here beyond showing why — `requests` is the live subscribeIncomingRequests
+      // listener, already filtered to genuinely-pending ones, so it drops this request (and
+      // the modal moves to whatever's next) the moment the next snapshot confirms it's gone.
+      setActionError(err instanceof Error ? err.message : 'รับคำขอไม่สำเร็จ ลองใหม่อีกครั้ง')
     } finally {
       setBusy(false)
     }
@@ -46,8 +50,8 @@ export function IncomingChatRequestModal() {
     setActionError(null)
     try {
       await decline(current.id)
-    } catch {
-      setActionError('ปฏิเสธคำขอไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'ปฏิเสธคำขอไม่สำเร็จ ลองใหม่อีกครั้ง')
     } finally {
       setBusy(false)
     }
