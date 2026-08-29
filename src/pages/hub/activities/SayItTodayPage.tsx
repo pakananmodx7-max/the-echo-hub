@@ -14,6 +14,13 @@ export function SayItTodayPage() {
           missions={SAY_IT_TODAY_MISSIONS}
           icon="💬"
           onComplete={() => completeActivity('say-it-today')}
+          completeLabel="ส่งภารกิจ"
+          reflection={{
+            title: 'ลองเขียนสิ่งที่คุณจะพูด 💬',
+            prompt: 'ถ้าคุณจะพูดสิ่งนี้กับเขาจริง ๆ คุณจะพูดยังไง?',
+            placeholder: 'เช่น ขอบคุณนะที่อยู่ข้าง ๆ เราเสมอ เราดีใจที่มีเธอเป็นเพื่อน',
+            helper: 'เขียนในแบบของคุณเอง ไม่ต้องยาวก็ได้',
+          }}
         />
       </div>
     </div>

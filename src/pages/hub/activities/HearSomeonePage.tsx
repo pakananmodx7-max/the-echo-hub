@@ -14,6 +14,12 @@ export function HearSomeonePage() {
           missions={HEAR_SOMEONE_MISSIONS}
           icon="👂"
           onComplete={() => completeActivity('hear-someone')}
+          completeLabel="ส่งภารกิจ"
+          reflection={{
+            title: 'ถ้าเขาเล่าเรื่องนี้ให้คุณฟัง คุณจะตอบยังไง? 👂',
+            prompt: 'ลองเขียนประโยคที่แสดงว่าคุณกำลังฟัง โดยไม่รีบตัดสินหรือให้คำแนะนำทันที',
+            placeholder: 'เราเข้าใจนะว่ามันคงเหนื่อยมาก ถ้าอยากเล่าต่อ เราฟังอยู่นะ',
+          }}
         />
       </div>
     </div>

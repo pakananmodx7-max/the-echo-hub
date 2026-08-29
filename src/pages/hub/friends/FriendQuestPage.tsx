@@ -14,6 +14,12 @@ export function FriendQuestPage() {
           missions={FRIEND_QUEST_MISSIONS}
           icon="🫶"
           onComplete={() => completeActivity('friend-bond')}
+          completeLabel="ส่งภารกิจ"
+          reflection={{
+            title: 'คุณจะทำภารกิจนี้ยังไง?',
+            prompt: 'ลองเขียนสิ่งที่คุณจะพูด หรือสิ่งที่คุณวางแผนจะทำ',
+            placeholder: 'จะชวนเพื่อนคุยตอนพัก แล้วถามจริง ๆ ว่าวันนี้โอเคไหม',
+          }}
         />
       </div>
     </div>
