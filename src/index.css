@@ -224,3 +224,116 @@ h1, h2, h3 {
   }
   .echo-bg-firefly { opacity: 0.55; }
 }
+
+/* ---------------------------------------------------------------------------
+   Welcome/Landing page background only — a soft, white-centered atmosphere:
+   corner gradient blobs, a faint giant "ECHO" watermark, flowing light lines,
+   echo ripples, floating hearts, and sparkles (see AnimatedEchoBackground.tsx).
+   Scoped entirely under .ewbg-* so it can never affect any other page's styles.
+--------------------------------------------------------------------------- */
+.ewbg-root {
+  background: var(--color-cream);
+}
+
+.ewbg-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  will-change: transform;
+}
+.ewbg-blob--a { animation: ewbg-blob-drift-a 26s ease-in-out infinite; }
+.ewbg-blob--b { animation: ewbg-blob-drift-b 31s ease-in-out infinite; }
+.ewbg-blob--c { animation: ewbg-blob-drift-a 24s ease-in-out infinite reverse; }
+.ewbg-blob--d { animation: ewbg-blob-drift-b 29s ease-in-out infinite reverse; }
+
+@keyframes ewbg-blob-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(34px, -26px, 0); }
+}
+@keyframes ewbg-blob-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-30px, 30px, 0); }
+}
+
+.ewbg-watermark {
+  transform: translate(-50%, -50%);
+  opacity: 0.045;
+  animation: ewbg-watermark-drift 26s ease-in-out infinite;
+}
+@keyframes ewbg-watermark-drift {
+  0%, 100% { transform: translate(-50%, -50%) translateX(-6px); opacity: 0.03; }
+  50% { transform: translate(-50%, -50%) translateX(6px); opacity: 0.055; }
+}
+
+.ewbg-line {
+  stroke-dasharray: 10 14;
+  animation: ewbg-line-flow linear infinite;
+  animation-duration: var(--line-duration, 22s);
+}
+@keyframes ewbg-line-flow {
+  to { stroke-dashoffset: -240; }
+}
+
+.ewbg-ripple {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  opacity: 0.18;
+  animation: ewbg-ripple-expand var(--ripple-duration, 8s) ease-out infinite;
+}
+@keyframes ewbg-ripple-expand {
+  0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0.35; }
+  70% { opacity: 0.1; }
+  100% { transform: translate(-50%, -50%) scale(1.9); opacity: 0; }
+}
+
+.ewbg-heart {
+  position: absolute;
+  opacity: var(--heart-opacity, 0.3);
+  animation: ewbg-heart-float var(--heart-duration, 12s) ease-in-out infinite, ewbg-heart-fade var(--heart-duration, 12s) ease-in-out infinite;
+}
+@keyframes ewbg-heart-float {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  33% { transform: translate3d(var(--heart-x, 10px), calc(var(--heart-y, 20px) * -1), 0) rotate(var(--heart-r, 3deg)); }
+  66% { transform: translate3d(calc(var(--heart-x, 10px) * -0.6), calc(var(--heart-y, 20px) * -0.4), 0) rotate(calc(var(--heart-r, 3deg) * -1)); }
+}
+@keyframes ewbg-heart-fade {
+  0%, 100% { opacity: var(--heart-opacity, 0.3); }
+  50% { opacity: calc(var(--heart-opacity, 0.3) * 1.35); }
+}
+
+.ewbg-sparkle {
+  position: absolute;
+  border-radius: 9999px;
+  opacity: var(--sparkle-opacity, 0.4);
+  animation: ewbg-sparkle-pulse var(--sparkle-duration, 5s) ease-in-out infinite;
+}
+@keyframes ewbg-sparkle-pulse {
+  0%, 100% { opacity: var(--sparkle-opacity, 0.4); transform: translateY(0); }
+  50% { opacity: calc(var(--sparkle-opacity, 0.4) * 1.8); transform: translateY(-6px); }
+}
+
+.ewbg-heart-pulse {
+  display: inline-block;
+  animation: ewbg-heart-pulse 3.5s ease-in-out infinite;
+}
+@keyframes ewbg-heart-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+.ewbg-content-in {
+  animation: fade-in-up 0.7s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ewbg-blob,
+  .ewbg-watermark,
+  .ewbg-line,
+  .ewbg-ripple,
+  .ewbg-heart,
+  .ewbg-sparkle,
+  .ewbg-heart-pulse {
+    animation: none !important;
+  }
+}
