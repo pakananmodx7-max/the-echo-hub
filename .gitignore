@@ -23,6 +23,13 @@ database-debug.log
 ui-debug.log
 *-debug.log
 
+# Service-account keys for scripts/exportStatsToSheets.ts (FIREBASE_SERVICE_ACCOUNT_PATH) —
+# never commit these; local Application Default Credentials (gcloud auth
+# application-default login) is the normal path and needs no key file at all.
+serviceAccountKey*.json
+*service-account*.json
+*-firebase-adminsdk-*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
