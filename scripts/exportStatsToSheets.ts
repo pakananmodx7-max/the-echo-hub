@@ -29,11 +29,23 @@
  * a different project (e.g. a staging project).
  *
  * Usage:
- *   npm run export:stats -- [YYYY-MM-DD]
+ *   npm run export:stats -- [YYYY-MM-DD] [--diag]
  *
- * With no date argument, exports "today" in Asia/Bangkok time. Safe to re-run: the Apps
- * Script endpoint upserts by date, so exporting the same date twice updates the same Sheet
- * row rather than duplicating it.
+ * With no date argument, exports "today" in Asia/Bangkok time — computed with the exact
+ * same getBangkokDateString() function (src/lib/thailandDate.ts) that
+ * src/features/analytics/analyticsService.ts uses to pick which document to write to, so
+ * this script always reads the same date bucket production actually wrote. If you're
+ * checking a specific day (e.g. from the Firestore console), always pass that date
+ * explicitly rather than relying on "today" — "today" here means today on the machine
+ * running this script, which is easy to get wrong across a day boundary.
+ *
+ * Add --diag to print, for each of analyticsDaily/{date} and
+ * analyticsActivityDaily/{date}: the exact document path read, whether it exists, and its
+ * raw fields (bare counters only, never PII) — the fastest way to tell "wrong date/path" apart
+ * from "counters really are zero".
+ *
+ * Safe to re-run: the Apps Script endpoint upserts by date, so exporting the same date
+ * twice updates the same Sheet row rather than duplicating it.
  *
  * This script NEVER sends message/journal/reflection text, moods tied to a specific
  * student, a codename, publicId, email, uid, or IP address — only the bare aggregate
@@ -44,6 +56,7 @@ import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { applicationDefault, cert, getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+import { getBangkokDateString } from '../src/lib/thailandDate'
 import {
   sendActivityStats,
   sendDailyStats,
@@ -53,15 +66,16 @@ import {
 
 const DEFAULT_PROJECT_ID = 'the-echo-hub'
 
-const BANGKOK_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'Asia/Bangkok',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-})
-
+// The date-bucket "today" is resolved with the EXACT SAME function
+// (getBangkokDateString, from src/lib/thailandDate.ts) that
+// src/features/analytics/analyticsService.ts uses to pick which document to write to —
+// not a second, independently-maintained copy of the same Intl.DateTimeFormat config. An
+// earlier version of this script had its own local copy of that formatter; two copies
+// meant to compute the same thing can silently drift (different JS engine, different ICU
+// data, a future edit to one and not the other), so this script now imports the one
+// production actually uses instead of re-implementing it.
 function todayBangkok(): string {
-  return BANGKOK_DATE_FORMATTER.format(new Date())
+  return getBangkokDateString()
 }
 
 function isValidDateString(s: string): boolean {
@@ -165,8 +179,54 @@ function printFirestoreAccessHelp(projectId: string, cause: unknown): void {
   console.error('')
 }
 
+const DAILY_FIELDS = [
+  'dailyActiveUsers', 'newUsers', 'moodCheckins', 'moodHappy', 'moodCalm', 'moodListen',
+  'moodTired', 'moodReadyToListen', 'missionsCompleted', 'gardenVisits',
+  'chatSessionsStarted', 'chatSessionsEnded', 'safetyBlocks',
+] as const
+
+const ACTIVITY_FIELDS = [
+  'sendSong', 'sayItToday', 'hearSomeone', 'friendBond', 'whoAmI', 'echoJournal',
+  'drawListen', 'garden',
+] as const
+
+/** --diag / --diagnostic anywhere in the args enables the diagnostic block below; the
+ * first remaining non-flag argument (if any) is the date. Matches "npm run export:stats --
+ * --diag 2026-08-29" and "npm run export:stats -- 2026-08-29 --diag" equally. */
+function parseArgs(argv: string[]): { date: string | undefined; diag: boolean } {
+  const flags = new Set(['--diag', '--diagnostic'])
+  const rest = argv.filter((a) => !flags.has(a))
+  return { date: rest[0], diag: rest.length !== argv.length }
+}
+
+/** Prints, for one aggregate document, its exact Firestore path, whether it exists, and its
+ * raw fields (bare counters only — never PII, matching what these collections are allowed
+ * to hold at all; see analyticsService.ts / firestore.rules). This is what makes a wrong
+ * date/path immediately obvious instead of silently reading back all zeros. */
+function printDiagnostic(
+  label: string,
+  path: string,
+  snap: FirebaseFirestore.DocumentSnapshot,
+  knownFields: readonly string[],
+): void {
+  const data = snap.data()
+  console.log('')
+  console.log(`[diag] ${label}`)
+  console.log(`[diag]   path: ${path}`)
+  console.log(`[diag]   exists: ${snap.exists}`)
+  if (!snap.exists) {
+    console.log('[diag]   (no document at this path — every field below defaults to 0)')
+  } else {
+    console.log(`[diag]   raw fields read: ${JSON.stringify(data)}`)
+    const unknownKeys = Object.keys(data ?? {}).filter((k) => !(knownFields as readonly string[]).includes(k))
+    if (unknownKeys.length > 0) {
+      console.log(`[diag]   unrecognized fields present (ignored by the exporter): ${unknownKeys.join(', ')}`)
+    }
+  }
+}
+
 async function main() {
-  const dateArg = process.argv[2]
+  const { date: dateArg, diag } = parseArgs(process.argv.slice(2))
   const date = dateArg ?? todayBangkok()
   if (!isValidDateString(date)) {
     console.error(`Invalid date argument "${dateArg}" — expected YYYY-MM-DD.`)
@@ -177,17 +237,32 @@ async function main() {
   await initAdmin()
   const db = getFirestore()
 
+  const dailyPath = `analyticsDaily/${date}`
+  const activityPath = `analyticsActivityDaily/${date}`
+
+  if (diag) {
+    console.log(`[diag] project: ${projectId}`)
+    console.log(`[diag] resolved date (Bangkok): ${date}${dateArg ? ' (from argument)' : ' (from current time — pass a date argument to pin an exact day)'}`)
+  }
+
   let dailySnap: FirebaseFirestore.DocumentSnapshot
   let activitySnap: FirebaseFirestore.DocumentSnapshot
   try {
     ;[dailySnap, activitySnap] = await Promise.all([
-      db.doc(`analyticsDaily/${date}`).get(),
-      db.doc(`analyticsActivityDaily/${date}`).get(),
+      db.doc(dailyPath).get(),
+      db.doc(activityPath).get(),
     ])
   } catch (err) {
     printFirestoreAccessHelp(projectId, err)
     throw new FriendlyExitError('Could not read Firestore.')
   }
+
+  if (diag) {
+    printDiagnostic('analyticsDaily', dailyPath, dailySnap, DAILY_FIELDS)
+    printDiagnostic('analyticsActivityDaily', activityPath, activitySnap, ACTIVITY_FIELDS)
+    console.log('')
+  }
+
   const dailyData = dailySnap.data()
   const activityData = activitySnap.data()
 
