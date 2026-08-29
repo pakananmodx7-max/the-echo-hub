@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '../../../../components/PageHeader'
+import { recordActivity } from '../../../../features/analytics/analyticsService'
 import { useAuth } from '../../../../hooks/useAuth'
 import { ModeSelectStep } from './steps/ModeSelectStep'
 import { PlayerCountStep } from './steps/PlayerCountStep'
@@ -180,6 +181,7 @@ export function WhoAmIGamePage() {
       setLastResult(result)
       setPhase('solo-summary')
       void completeActivity('friend-bond')
+      void recordActivity('whoAmI')
       return
     }
 
@@ -201,6 +203,7 @@ export function WhoAmIGamePage() {
     const isLast = turnIndex + 1 >= turnOrder.length
     if (isLast) {
       void completeActivity('friend-bond')
+      void recordActivity('whoAmI')
       setPhase(mode === 'team' ? 'team-summary' : 'scoreboard')
       return
     }

@@ -1,6 +1,7 @@
 import {
   doc,
   getDoc,
+  increment,
   onSnapshot,
   runTransaction,
   serverTimestamp,
@@ -49,6 +50,15 @@ export async function awardDailyMission(uid: string, type: MissionId, dateStr: s
   const rewardRef = doc(db, 'users', uid, 'rewards', `${type}_${dateStr}`)
   const userRef = doc(db, 'users', uid)
   const progressRef = doc(db, 'users', uid, 'dailyProgress', dateStr)
+  // Piggybacks on this same create-once transaction (see the rewardSnap.exists() guard
+  // below) instead of a separate call — the reward ledger IS the idempotency guarantee for
+  // "once per account/date/mission-type", so the aggregate stats counters below get it for
+  // free. 'garden' additionally counts as this account's one daily Garden visit, using the
+  // exact same 45s-dwell "garden" mission as its definition (see EchoGardenPage.tsx) rather
+  // than inventing a second one. See analyticsService.ts / firestore.rules for what these
+  // aggregate-only, privacy-safe counters are and aren't allowed to contain.
+  const analyticsDailyRef = doc(db, 'analyticsDaily', dateStr)
+  const analyticsActivityRef = doc(db, 'analyticsActivityDaily', dateStr)
 
   try {
     return await runTransaction(db, async (tx) => {
@@ -95,6 +105,14 @@ export async function awardDailyMission(uid: string, type: MissionId, dateStr: s
         },
         { merge: true },
       )
+
+      const analyticsDailyPatch: Record<string, ReturnType<typeof increment>> = { missionsCompleted: increment(1) }
+      if (type === 'garden') analyticsDailyPatch.gardenVisits = increment(1)
+      tx.set(analyticsDailyRef, analyticsDailyPatch, { merge: true })
+      if (type === 'garden') {
+        tx.set(analyticsActivityRef, { garden: increment(1) }, { merge: true })
+      }
+
       return true
     })
   } catch (err) {

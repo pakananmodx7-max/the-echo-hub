@@ -4,6 +4,7 @@ import { Card } from '../../../components/Card'
 import { Button } from '../../../components/Button'
 import { ReflectionInput } from '../../../components/ReflectionInput'
 import { SONG_SUGGESTIONS } from '../../../data/missions'
+import { recordActivity } from '../../../features/analytics/analyticsService'
 import { useAuth } from '../../../hooks/useAuth'
 import { isMeaningfulReflection } from '../../../lib/reflection'
 
@@ -23,6 +24,7 @@ export function SendSongPage() {
       return
     }
     await completeActivity('send-song')
+    void recordActivity('sendSong')
     setSent(true)
   }
 

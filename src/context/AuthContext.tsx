@@ -3,6 +3,7 @@ import { authService } from '../features/auth/authService'
 import { presenceService } from '../features/presence/presenceService'
 import { awardDailyMission } from '../features/rewards/rewardsService'
 import type { MissionId } from '../features/rewards/missionCatalog'
+import { recordMoodCheckin, recordNewUser } from '../features/analytics/analyticsService'
 import { getBangkokDateString } from '../lib/thailandDate'
 import type { AuthUser, MoodId } from '../types'
 
@@ -82,6 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const completeOnboarding = useCallback(async () => {
     const u = await authService.updateUser({ onboardingComplete: true })
     setUser(u)
+    // Fires exactly once ever per account (see recordNewUser's create-once marker) — never
+    // on a later login, since this transition only ever happens once per account's lifetime.
+    if (u.id) void recordNewUser(u.id)
     return u
   }, [])
 
@@ -100,7 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const u = await authService.updateUser({ mood })
     setUser(u)
     presenceService.updateMood(mood)
-    if (u.id) void awardDailyMission(u.id, 'checkin', getBangkokDateString())
+    if (u.id) {
+      void awardDailyMission(u.id, 'checkin', getBangkokDateString())
+      void recordMoodCheckin(u.id, mood)
+    }
     return u
   }, [])
 

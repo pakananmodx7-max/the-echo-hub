@@ -7,6 +7,7 @@ import { SharedDrawingCanvas, type DrawingCanvasHandle } from '../../../componen
 import { getMoodById } from '../../../data/moods'
 import { journalService } from '../../../features/journal/journalService'
 import { awardDailyMission } from '../../../features/rewards/rewardsService'
+import { recordActivity } from '../../../features/analytics/analyticsService'
 import { useAuth } from '../../../hooks/useAuth'
 import { getBangkokDateString } from '../../../lib/thailandDate'
 import type { JournalEntry, MoodId } from '../../../types'
@@ -48,6 +49,7 @@ export function EchoJournalPage() {
     // A real save (a drawing was actually made and kept) is the completion event for the
     // daily "ECHO Journal" mission — never just opening the page.
     void awardDailyMission(user.id, 'journal', getBangkokDateString())
+    void recordActivity('echoJournal')
   }
 
   if (!user) return null

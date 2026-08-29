@@ -1,6 +1,7 @@
 import { PageHeader } from '../../../components/PageHeader'
 import { RandomMissionCard } from '../../../components/RandomMissionCard'
 import { SAY_IT_TODAY_MISSIONS } from '../../../data/missions'
+import { recordActivity } from '../../../features/analytics/analyticsService'
 import { useAuth } from '../../../hooks/useAuth'
 
 export function SayItTodayPage() {
@@ -13,7 +14,10 @@ export function SayItTodayPage() {
         <RandomMissionCard
           missions={SAY_IT_TODAY_MISSIONS}
           icon="💬"
-          onComplete={() => completeActivity('say-it-today')}
+          onComplete={() => {
+            void completeActivity('say-it-today')
+            void recordActivity('sayItToday')
+          }}
           completeLabel="ส่งภารกิจ"
           reflection={{
             title: 'ลองเขียนสิ่งที่คุณจะพูด 💬',

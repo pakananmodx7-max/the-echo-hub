@@ -5,6 +5,7 @@ import { Avatar } from '../../../components/Avatar'
 import { MessageSafetyNotice } from '../../../components/MessageSafetyNotice'
 import { StickerPicker } from '../../../components/StickerPicker'
 import { confirmLeavingActiveChat, registerActiveChatGuard } from '../../../features/chat/activeChatNavGuard'
+import { recordSafetyBlock } from '../../../features/analytics/analyticsService'
 import { evaluateMessageSafety } from '../../../features/messageSafety/evaluateMessageSafety'
 import { useAuth } from '../../../hooks/useAuth'
 import { useChatRoomMessages } from '../../../hooks/useChatRoomMessages'
@@ -156,6 +157,7 @@ export function PrivateChatPage() {
     const result = evaluateMessageSafety(text)
     if (!result.allowed) {
       setSafetyNotice({ severity: result.severity as 'blocked' | 'critical', suggestion: result.suggestion })
+      void recordSafetyBlock(text)
       return
     }
     setSafetyNotice(null)

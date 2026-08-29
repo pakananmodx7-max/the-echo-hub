@@ -21,6 +21,108 @@ service cloud.firestore {
       return a < b ? a + '_' + b : b + '_' + a;
     }
 
+    // --- Shared helpers for the analyticsDaily / analyticsActivityDaily aggregate-only
+    // counters below. Firestore rules can't loop over a dynamic field list, so every legal
+    // write is enumerated explicitly as an exact one- or two-field delta, mirroring the
+    // rest of this file's style (e.g. the users/{uid} totalPoints delta checks above)
+    // rather than a generic loop.
+    //
+    // IMPORTANT: `request.resource.data.diff(resource.data).affectedKeys()` is computed
+    // exactly ONCE per write, at the single call site in each match block below
+    // (`isValidAnalyticsDailyDelta(analyticsAffectedKeys())` etc.), and threaded through
+    // every branch as the `keys` parameter — an earlier version called the equivalent of
+    // this inside each of the ~9 OR-ed branches individually (9 separate `.diff()` calls
+    // for one write) and reliably hit Firestore's "maximum of 1000 expressions to
+    // evaluate" per-request budget, even on a write that should short-circuit on the very
+    // first branch. `.diff()` is evidently expensive enough that this fan-out mattered;
+    // computing it once and passing the result through fixed it.
+    //
+    // The prior value of one field — 0 when the document doesn't exist yet (create) or the
+    // field was never set before.
+    function priorNum(field) {
+      return resource != null ? resource.data.get(field, 0) : 0;
+    }
+    // The set of field names this write actually changes — on create, that's just the new
+    // document's own keys; on update, the real diff against the existing document. Compute
+    // this ONCE per write and pass its result into every helper below as `keys`.
+    function analyticsAffectedKeys() {
+      return resource != null
+        ? request.resource.data.diff(resource.data).affectedKeys()
+        : request.resource.data.keys();
+    }
+    // A write that touches ONLY `field` (per the precomputed `keys`), moving it by exactly
+    // `delta`, never negative.
+    function isSingleFieldDelta(keys, field, delta) {
+      return keys.hasOnly([field])
+        && request.resource.data.get(field, 0) - priorNum(field) == delta
+        && request.resource.data.get(field, 0) >= 0;
+    }
+    // A write that touches ONLY `fieldA` and `fieldB` together, each by its own exact
+    // delta — used for "one mission + one Garden visit" below, never negative on either side.
+    function isTwoFieldDelta(keys, fieldA, deltaA, fieldB, deltaB) {
+      return keys.hasOnly([fieldA, fieldB])
+        && request.resource.data.get(fieldA, 0) - priorNum(fieldA) == deltaA
+        && request.resource.data.get(fieldB, 0) - priorNum(fieldB) == deltaB
+        && request.resource.data.get(fieldA, 0) >= 0
+        && request.resource.data.get(fieldB, 0) >= 0;
+    }
+
+    // Mood-category delta helper — computed once per field rather than enumerated as
+    // ordered from/to pairs (an earlier version enumerated all 20 such pairs explicitly,
+    // which contributed to the same evaluation-budget problem described above).
+    function moodDelta(field) {
+      return request.resource.data.get(field, 0) - priorNum(field);
+    }
+    // First daily mood check-in: moodCheckins +1 and exactly one category +1 (the other
+    // four untouched), every category value non-negative.
+    function isFirstMoodCheckin(keys) {
+      return keys.hasOnly(['moodCheckins', 'moodHappy', 'moodCalm', 'moodListen', 'moodTired', 'moodReadyToListen'])
+        && moodDelta('moodCheckins') == 1
+        && moodDelta('moodHappy') in [-1, 0, 1] && moodDelta('moodCalm') in [-1, 0, 1]
+        && moodDelta('moodListen') in [-1, 0, 1] && moodDelta('moodTired') in [-1, 0, 1]
+        && moodDelta('moodReadyToListen') in [-1, 0, 1]
+        && request.resource.data.get('moodHappy', 0) >= 0 && request.resource.data.get('moodCalm', 0) >= 0
+        && request.resource.data.get('moodListen', 0) >= 0 && request.resource.data.get('moodTired', 0) >= 0
+        && request.resource.data.get('moodReadyToListen', 0) >= 0
+        && moodDelta('moodHappy') + moodDelta('moodCalm') + moodDelta('moodListen')
+             + moodDelta('moodTired') + moodDelta('moodReadyToListen') == 1;
+    }
+    // A same-day mood re-categorization: one category -1, a different one +1, moodCheckins
+    // untouched, every category value non-negative.
+    function isMoodRecategorize(keys) {
+      return keys.hasOnly(['moodCheckins', 'moodHappy', 'moodCalm', 'moodListen', 'moodTired', 'moodReadyToListen'])
+        && moodDelta('moodCheckins') == 0
+        && moodDelta('moodHappy') in [-1, 0, 1] && moodDelta('moodCalm') in [-1, 0, 1]
+        && moodDelta('moodListen') in [-1, 0, 1] && moodDelta('moodTired') in [-1, 0, 1]
+        && moodDelta('moodReadyToListen') in [-1, 0, 1]
+        && request.resource.data.get('moodHappy', 0) >= 0 && request.resource.data.get('moodCalm', 0) >= 0
+        && request.resource.data.get('moodListen', 0) >= 0 && request.resource.data.get('moodTired', 0) >= 0
+        && request.resource.data.get('moodReadyToListen', 0) >= 0
+        && moodDelta('moodHappy') + moodDelta('moodCalm') + moodDelta('moodListen')
+             + moodDelta('moodTired') + moodDelta('moodReadyToListen') == 0
+        && (moodDelta('moodHappy') == -1 || moodDelta('moodCalm') == -1 || moodDelta('moodListen') == -1
+            || moodDelta('moodTired') == -1 || moodDelta('moodReadyToListen') == -1);
+    }
+    // The full analyticsDaily disjunction, taking the precomputed affected-keys set once.
+    function isValidAnalyticsDailyDelta(keys) {
+      return isSingleFieldDelta(keys, 'dailyActiveUsers', 1) ||
+        isSingleFieldDelta(keys, 'newUsers', 1) ||
+        isSingleFieldDelta(keys, 'chatSessionsStarted', 1) ||
+        isSingleFieldDelta(keys, 'chatSessionsEnded', 1) ||
+        isSingleFieldDelta(keys, 'safetyBlocks', 1) ||
+        isSingleFieldDelta(keys, 'missionsCompleted', 1) ||
+        isTwoFieldDelta(keys, 'missionsCompleted', 1, 'gardenVisits', 1) ||
+        isFirstMoodCheckin(keys) ||
+        isMoodRecategorize(keys);
+    }
+    // The full analyticsActivityDaily disjunction, taking the precomputed affected-keys set once.
+    function isValidAnalyticsActivityDelta(keys) {
+      return isSingleFieldDelta(keys, 'sendSong', 1) || isSingleFieldDelta(keys, 'sayItToday', 1) ||
+        isSingleFieldDelta(keys, 'hearSomeone', 1) || isSingleFieldDelta(keys, 'friendBond', 1) ||
+        isSingleFieldDelta(keys, 'whoAmI', 1) || isSingleFieldDelta(keys, 'echoJournal', 1) ||
+        isSingleFieldDelta(keys, 'drawListen', 1) || isSingleFieldDelta(keys, 'garden', 1);
+    }
+
     // Private per-user document (codename, avatarId, mood, onboarding state, completed
     // activities, the publicId pointer, and the ECHO Points summary cache — totalPoints/
     // currentStreak/bestStreak/lastCheckinDate). Only the owning account may ever read or
@@ -347,6 +449,104 @@ service cloud.firestore {
             && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(request.resource.data.roomId)).data.participants
             && request.resource.data.ownerPublicId in get(/databases/$(database)/documents/chatRooms/$(request.resource.data.roomId)).data.participants)
         );
+    }
+
+    // --- Privacy-safe, aggregate-only usage statistics for the Google Sheets dashboard
+    // (see src/features/analytics/analyticsService.ts). Firebase remains the source of
+    // truth; these documents hold ONLY bare counters or private per-account idempotency
+    // markers — never message/journal/reflection text, never a codename/publicId/email,
+    // and the raw uid appears only as a path segment on a marker nobody (student or
+    // otherwise) can ever read back through these rules. Nobody may ever READ these from a
+    // normal client — the only reader is the offline admin export script
+    // (scripts/exportStatsToSheets.ts), which uses the Firebase Admin SDK and bypasses
+    // these rules entirely, so there is no client-side "admin" path to misconfigure.
+    //
+    // WRITE SECURITY NOTE: each write below is constrained to a specific, small, always-
+    // non-negative delta on an explicit allowlist of fields — the same class of guarantee
+    // this file's own users/{uid}.totalPoints rule already relies on (see above). Firestore
+    // rules cannot verify that a shared counter's increment was written in the SAME
+    // transaction as a genuine, real underlying event (rules only ever see each document's
+    // own before/after state, never a sibling write's success within the same commit) — so
+    // a determined attacker hand-crafting raw Firestore SDK calls (bypassing this app's own
+    // UI entirely) could, at most, inflate a shared counter by repeatedly satisfying its
+    // narrow precondition, never set it to an arbitrary value, never read anyone else's
+    // data, and never affect a real chat/mission/notification/room document. Given the
+    // actual stakes here (an internal usage dashboard, not student-facing data), this is an
+    // accepted, documented tradeoff rather than a silent gap — see the analytics section of
+    // this project's most recent report for the full reasoning. Fully closing it requires
+    // trusted server-side aggregation (Cloud Functions), which this project does not
+    // currently use anywhere.
+    match /analyticsDaily/{date} {
+      allow read: if false;
+      allow create, update: if isSignedIn() && isValidAnalyticsDailyDelta(analyticsAffectedKeys());
+      allow delete: if false;
+    }
+
+    match /analyticsActivityDaily/{date} {
+      allow read: if false;
+      allow create, update: if isSignedIn() && isValidAnalyticsActivityDelta(analyticsAffectedKeys());
+      allow delete: if false;
+    }
+
+    // Daily Active User marker — private, per-account, create-once. See
+    // analyticsService.recordDailyActiveUser: a refresh, a second tab, logging out/in the
+    // same day, or a second device all just retry this same already-exists create and are
+    // safe no-ops, so dailyActiveUsers above can only ever count a given account once a day.
+    match /analyticsDailyUsers/{date}/users/{uid} {
+      // The owner may read only their own marker — needed so recordDailyActiveUser's
+      // transaction can check "have I already been counted today" before writing, exactly
+      // like the existing rewards ledger pattern above. Nobody else may ever read it.
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update, delete: if false;
+    }
+
+    // Today's mood-check-in category marker — private, per-account. Lets
+    // analyticsService.recordMoodCheckin tell "first check-in today" from "re-categorizing
+    // today's check-in" apart, without ever exposing which student picked which mood.
+    match /analyticsMoodDaily/{date}/users/{uid} {
+      // The owner may read only their own marker — needed so recordMoodCheckin's
+      // transaction can see today's already-recorded category (to tell a first check-in
+      // from a same-day re-categorization) before writing.
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && request.auth.uid == uid && request.resource.data.category is string;
+      allow update: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.category is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['category', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Global, once-ever-per-account marker gating newUsers above — never on login, only the
+    // account's own one-time onboarding completion (see AuthContext.completeOnboarding).
+    match /analyticsNewUserMarkers/{uid} {
+      // The owner may read only their own marker — needed so recordNewUser's transaction
+      // can check "have I already been counted, ever" before writing.
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update, delete: if false;
+    }
+
+    // One marker per chat room session (never the deterministic pairId, so a later, genuine
+    // new session between the same two people is still counted) gating chatSessionsStarted.
+    // Tied to the exact same "I'm the receiver of a still-pending request" precondition
+    // chatRooms' own create rule below already requires.
+    match /analyticsChatStartMarkers/{roomId} {
+      allow read: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.requestId is string
+        && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.status == 'pending'
+        && get(/databases/$(database)/documents/chatRequests/$(request.resource.data.requestId)).data.toPublicId == myPublicId();
+      allow update, delete: if false;
+    }
+
+    // One marker per room gating chatSessionsEnded — create-once, so even a retried
+    // endConversation call (see its own already-ended no-op check) can't double count.
+    match /analyticsChatEndMarkers/{roomId} {
+      allow read: if false;
+      allow create: if isSignedIn()
+        && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
+        && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.status == 'active';
+      allow update, delete: if false;
     }
 
     // Everything else is closed by default — no wildcard fallback rule.

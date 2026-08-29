@@ -7,6 +7,7 @@ import { IncomingChatRequestModal } from '../../components/IncomingChatRequestMo
 import { NewMessageToast } from '../../components/NewMessageToast'
 import { SentRequestWatcher } from '../../components/SentRequestWatcher'
 import { useAuth } from '../../hooks/useAuth'
+import { useDailyActiveRecorder } from '../../hooks/useDailyActiveRecorder'
 import { usePresenceSession } from '../../features/presence/usePresenceSession'
 
 /** Page-to-page navigation inside the hub is lazy-loaded (see App.tsx) — this keeps the
@@ -19,6 +20,7 @@ function PageFallback() {
 export function HubLayout() {
   const { user } = useAuth()
   usePresenceSession(user)
+  useDailyActiveRecorder(user)
 
   return (
     <div className="min-h-svh bg-cream">

@@ -1,6 +1,7 @@
 import { PageHeader } from '../../../components/PageHeader'
 import { RandomMissionCard } from '../../../components/RandomMissionCard'
 import { HEAR_SOMEONE_MISSIONS } from '../../../data/missions'
+import { recordActivity } from '../../../features/analytics/analyticsService'
 import { useAuth } from '../../../hooks/useAuth'
 
 export function HearSomeonePage() {
@@ -13,7 +14,10 @@ export function HearSomeonePage() {
         <RandomMissionCard
           missions={HEAR_SOMEONE_MISSIONS}
           icon="👂"
-          onComplete={() => completeActivity('hear-someone')}
+          onComplete={() => {
+            void completeActivity('hear-someone')
+            void recordActivity('hearSomeone')
+          }}
           completeLabel="ส่งภารกิจ"
           reflection={{
             title: 'ถ้าเขาเล่าเรื่องนี้ให้คุณฟัง คุณจะตอบยังไง? 👂',

@@ -8,6 +8,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   limit,
   onSnapshot,
   orderBy,
@@ -21,6 +22,7 @@ import {
 } from 'firebase/firestore'
 import { firebaseConfigured, getFirebaseAuth, getFirebaseFirestore } from '../../lib/firebase'
 import { getStickerById } from '../../data/stickers'
+import { getBangkokDateString } from '../../lib/thailandDate'
 import type { MoodId } from '../../types'
 import { CHAT_REQUEST_ERRORS, getEffectiveRequestStatus } from './chatRequestState'
 import { isPublicProfileKnownToExist, markPublicProfileExists } from './publicProfileCache'
@@ -429,6 +431,13 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
     const roomId = doc(collection(db, 'chatRooms')).id
     const roomRef = doc(db, 'chatRooms', roomId)
     const notificationRef = doc(collection(db, 'notifications'))
+    // Aggregate-only usage stat (see analyticsService.ts) — one room, one count, in the
+    // SAME transaction as the room's own create-once creation above so it can never fire
+    // without a real new room behind it. analyticsChatStartMarkers/{roomId} is keyed by the
+    // fresh per-session roomId (never the deterministic pairId), so a later, genuinely new
+    // session between the same two people is counted again, exactly like the room itself.
+    const analyticsStartMarkerRef = doc(db, 'analyticsChatStartMarkers', roomId)
+    const analyticsDailyRef = doc(db, 'analyticsDaily', getBangkokDateString())
 
     let requestData: DocumentData
     try {
@@ -470,6 +479,8 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
           read: false,
           createdAt: serverTimestamp(),
         })
+        tx.set(analyticsStartMarkerRef, { requestId, createdAt: serverTimestamp() })
+        tx.set(analyticsDailyRef, { chatSessionsStarted: increment(1) }, { merge: true })
         return data
       })
     } catch (err) {
@@ -755,6 +766,12 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
       status: 'expired',
       updatedAt: serverTimestamp(),
     })
+    // Aggregate-only usage stat (see analyticsService.ts), same batch as the room's own
+    // active -> ended transition above — analyticsChatEndMarkers/{roomId} is create-once,
+    // so even a retry of this exact call (see the already-ended no-op check above) can
+    // never double-count the same room being ended.
+    batch.set(doc(db, 'analyticsChatEndMarkers', roomId), { createdAt: serverTimestamp() })
+    batch.set(doc(db, 'analyticsDaily', getBangkokDateString()), { chatSessionsEnded: increment(1) }, { merge: true })
 
     console.log('[endConversation] write_started', { roomId })
     try {

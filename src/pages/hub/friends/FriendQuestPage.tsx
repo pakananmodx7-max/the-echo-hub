@@ -1,6 +1,7 @@
 import { PageHeader } from '../../../components/PageHeader'
 import { RandomMissionCard } from '../../../components/RandomMissionCard'
 import { FRIEND_QUEST_MISSIONS } from '../../../data/missions'
+import { recordActivity } from '../../../features/analytics/analyticsService'
 import { useAuth } from '../../../hooks/useAuth'
 
 export function FriendQuestPage() {
@@ -13,7 +14,10 @@ export function FriendQuestPage() {
         <RandomMissionCard
           missions={FRIEND_QUEST_MISSIONS}
           icon="🫶"
-          onComplete={() => completeActivity('friend-bond')}
+          onComplete={() => {
+            void completeActivity('friend-bond')
+            void recordActivity('friendBond')
+          }}
           completeLabel="ส่งภารกิจ"
           reflection={{
             title: 'คุณจะทำภารกิจนี้ยังไง?',

@@ -3,6 +3,7 @@ import { Avatar } from '../../../components/Avatar'
 import { Button } from '../../../components/Button'
 import { MessageSafetyNotice } from '../../../components/MessageSafetyNotice'
 import { StickerPicker } from '../../../components/StickerPicker'
+import { recordSafetyBlock } from '../../../features/analytics/analyticsService'
 import { evaluateMessageSafety } from '../../../features/messageSafety/evaluateMessageSafety'
 import { useGardenPublicChat } from '../../../hooks/useGardenPublicChat'
 import { getStickerById } from '../../../data/stickers'
@@ -52,6 +53,7 @@ export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
     const result = evaluateMessageSafety(text)
     if (!result.allowed) {
       setSafetyNotice({ severity: result.severity as 'blocked' | 'critical', suggestion: result.suggestion })
+      void recordSafetyBlock(text)
       return
     }
     setSafetyNotice(null)
