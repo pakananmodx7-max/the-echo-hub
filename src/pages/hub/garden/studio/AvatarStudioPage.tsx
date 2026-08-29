@@ -6,6 +6,7 @@ import { Button } from '../../../../components/Button'
 import { Avatar } from '../../../../components/Avatar'
 import { useAuth } from '../../../../hooks/useAuth'
 import { avatarProfileService } from '../../../../features/garden/avatarProfileService'
+import { primeGardenMusicPlayer } from '../useGardenMusic'
 import {
   ACCESSORIES,
   BOTTOM_STYLES,
@@ -94,6 +95,7 @@ export function AvatarStudioPage() {
   }
 
   function handleEnter() {
+    primeGardenMusicPlayer()
     avatarProfileService.saveConfig(user!.id, config)
     navigate('/hub/garden')
   }

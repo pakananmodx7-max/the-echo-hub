@@ -11,6 +11,7 @@ import { ONLINE_USERS } from '../../data/onlineUsers'
 import { useGardenPlayers } from '../../hooks/useGardenPlayers'
 import { useAuth } from '../../hooks/useAuth'
 import { prefetchWhenIdle } from '../../lib/idlePrefetch'
+import { primeGardenMusicPlayer } from './garden/useGardenMusic'
 import type { MoodId } from '../../types'
 
 export function HomePage() {
@@ -114,7 +115,7 @@ export function HomePage() {
             </div>
             <span className="text-sm text-ink-soft">มี {gardenMembers.length} คนอยู่ในสวน</span>
           </div>
-          <Link to="/hub/garden">
+          <Link to="/hub/garden" onClick={() => primeGardenMusicPlayer()}>
             <Button fullWidth variant="soft-mint" className="mt-4">
               เข้าสวน →
             </Button>

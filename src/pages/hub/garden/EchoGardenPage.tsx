@@ -71,6 +71,15 @@ export function EchoGardenPage() {
     setWebglOk(detectWebGL())
   }, [])
 
+  // Attempt Garden Music autoplay exactly once, right as the Garden mounts — riding on
+  // the "เข้าสวน" press that got the student here (see useGardenMusic's attemptAutoplay
+  // doc comment for the full autoplay/fallback flow). Runs regardless of 2D/3D mode since
+  // the hidden player host is always mounted below either way.
+  useEffect(() => {
+    music.attemptAutoplay()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     function onVisibility() {
       setPageVisible(!document.hidden)
@@ -142,6 +151,7 @@ export function EchoGardenPage() {
     isPlaying: music.isPlaying,
     muted: music.muted,
     volume: music.volume,
+    autoplayBlocked: music.autoplayBlocked,
     onPlay: music.play,
     onPause: music.pause,
     onToggleMute: music.toggleMute,

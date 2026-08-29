@@ -28,6 +28,9 @@ interface GardenHUDProps {
     isPlaying: boolean
     muted: boolean
     volume: number
+    /** True once an automatic autoplay attempt on Garden entry has been silently blocked
+     * by the browser — shows the small "แตะเพื่อเปิดเพลง" fallback instead of an error. */
+    autoplayBlocked: boolean
     onPlay: () => void
     onPause: () => void
     onToggleMute: () => void
@@ -56,7 +59,18 @@ export function GardenHUD(props: GardenHUDProps) {
         <span className="pointer-events-auto rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-medium text-mint-text shadow-sm backdrop-blur-md">
           🟢 มี {memberCount} คนอยู่ในสวน
         </span>
-        <GardenMusicControl track={music.track} status={music.status} isPlaying={music.isPlaying} muted={music.muted} volume={music.volume} onPlay={music.onPlay} onPause={music.onPause} onToggleMute={music.onToggleMute} onChangeVolume={music.onChangeVolume} />
+        <div className="pointer-events-auto flex items-center gap-2">
+          {music.autoplayBlocked ? (
+            <button
+              type="button"
+              onClick={music.onPlay}
+              className="rounded-full bg-white/85 px-3 py-2 text-xs font-semibold text-lavender-600 shadow backdrop-blur-sm active:scale-95"
+            >
+              🎧 แตะเพื่อเปิดเพลง
+            </button>
+          ) : null}
+          <GardenMusicControl track={music.track} status={music.status} isPlaying={music.isPlaying} muted={music.muted} volume={music.volume} onPlay={music.onPlay} onPause={music.onPause} onToggleMute={music.onToggleMute} onChangeVolume={music.onChangeVolume} />
+        </div>
       </div>
 
       <div className="flex flex-col items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
