@@ -150,3 +150,77 @@ h1, h2, h3 {
 /* Scrollbar tidy-up for horizontal chip rows */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ---------------------------------------------------------------------------
+   Login page background only — a calm animated evening-garden scene (see
+   LoginGardenBackground.tsx). Scoped entirely under .echo-login-bg so it can
+   never affect AmbientBackground or any other page's styles.
+--------------------------------------------------------------------------- */
+.echo-login-bg {
+  background: linear-gradient(180deg, #ece5ff 0%, #fdfaf4 55%, #cdeee0 100%);
+}
+
+.echo-login-bg__glow {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(255, 215, 230, 0.55), transparent 45%),
+    radial-gradient(circle at 80% 10%, rgba(191, 166, 255, 0.4), transparent 50%),
+    radial-gradient(circle at 50% 90%, rgba(143, 214, 180, 0.35), transparent 55%);
+  background-size: 160% 160%;
+  animation: echo-bg-glow-drift 50s ease-in-out infinite alternate;
+}
+
+@keyframes echo-bg-glow-drift {
+  0% { background-position: 0% 0%, 100% 0%, 50% 100%; }
+  100% { background-position: 10% 12%, 90% 8%, 45% 92%; }
+}
+
+.echo-bg-star {
+  animation: echo-bg-twinkle 6s ease-in-out infinite;
+}
+@keyframes echo-bg-twinkle {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.75; }
+}
+
+.echo-bg-firefly {
+  animation: echo-bg-firefly-float var(--fly-duration, 18s) ease-in-out infinite, echo-bg-firefly-glow var(--glow-duration, 4.5s) ease-in-out infinite;
+}
+@keyframes echo-bg-firefly-float {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(8px, -14px); }
+  50% { transform: translate(-6px, -4px); }
+  75% { transform: translate(10px, 10px); }
+}
+@keyframes echo-bg-firefly-glow {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.9; }
+}
+
+.echo-bg-leaf {
+  transform-origin: bottom center;
+  animation: echo-bg-leaf-sway var(--sway-duration, 7s) ease-in-out infinite;
+}
+@keyframes echo-bg-leaf-sway {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+.echo-bg-ripple {
+  animation: echo-bg-ripple 7s ease-out infinite;
+}
+@keyframes echo-bg-ripple {
+  0% { transform: scale(0.3); opacity: 0.4; }
+  70% { opacity: 0.12; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-login-bg__glow,
+  .echo-bg-star,
+  .echo-bg-firefly,
+  .echo-bg-leaf,
+  .echo-bg-ripple {
+    animation: none !important;
+  }
+  .echo-bg-firefly { opacity: 0.55; }
+}
