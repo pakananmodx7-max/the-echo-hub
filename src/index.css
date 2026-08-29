@@ -255,14 +255,24 @@ h1, h2, h3 {
   50% { transform: translate3d(-30px, 30px, 0); }
 }
 
-.ewbg-watermark {
+.ewbg-watermark-wrap {
+  position: absolute;
+  left: 50%;
+  top: 42%;
   transform: translate(-50%, -50%);
-  opacity: 0.045;
-  animation: ewbg-watermark-drift 26s ease-in-out infinite;
 }
-@keyframes ewbg-watermark-drift {
-  0%, 100% { transform: translate(-50%, -50%) translateX(-6px); opacity: 0.03; }
-  50% { transform: translate(-50%, -50%) translateX(6px); opacity: 0.055; }
+
+.ewbg-watermark {
+  opacity: 0.06;
+  animation: ewbg-watermark-breathe 26s ease-in-out infinite, ewbg-watermark-float 8s ease-in-out infinite;
+}
+@keyframes ewbg-watermark-breathe {
+  0%, 100% { opacity: 0.05; }
+  50% { opacity: 0.075; }
+}
+@keyframes ewbg-watermark-float {
+  0%, 100% { transform: translateY(-4px); }
+  50% { transform: translateY(4px); }
 }
 
 .ewbg-line {

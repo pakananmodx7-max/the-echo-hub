@@ -145,15 +145,18 @@ function GradientBlobs() {
   )
 }
 
-/** Layer 1 — a huge, near-invisible "ECHO" watermark behind the content; drifts a few
- * pixels horizontally and breathes in opacity, never darker than the real page title. */
+/** Layer 1 — a huge, near-invisible "ECHO" watermark behind the content; floats gently up
+ * and down and breathes in opacity, never darker than the real page title. The wrapper
+ * handles static centering so the animated inner element only ever carries translateY. */
 function EchoWatermark() {
   return (
-    <div
-      className="ewbg-watermark absolute left-1/2 top-[42%] whitespace-nowrap bg-gradient-to-br from-lavender-300 to-pink-glow bg-clip-text font-display font-extrabold leading-none tracking-tight text-transparent"
-      style={{ fontSize: 'clamp(5rem, 26vw, 20rem)' }}
-    >
-      ECHO
+    <div className="ewbg-watermark-wrap">
+      <div
+        className="ewbg-watermark whitespace-nowrap bg-gradient-to-br from-lavender-400 to-pink-deep bg-clip-text font-display font-extrabold leading-none tracking-tight text-transparent"
+        style={{ fontSize: 'clamp(5rem, 26vw, 20rem)' }}
+      >
+        ECHO
+      </div>
     </div>
   )
 }
