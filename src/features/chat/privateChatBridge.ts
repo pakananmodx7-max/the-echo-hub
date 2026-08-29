@@ -20,6 +20,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { firebaseConfigured, getFirebaseAuth, getFirebaseFirestore } from '../../lib/firebase'
+import { getStickerById } from '../../data/stickers'
 import type { MoodId } from '../../types'
 import { CHAT_REQUEST_ERRORS, getEffectiveRequestStatus } from './chatRequestState'
 import { isPublicProfileKnownToExist, markPublicProfileExists } from './publicProfileCache'
@@ -77,7 +78,13 @@ export interface ChatRoomRecord {
 export interface ChatMessage {
   id: string
   senderPublicId: string
-  text: string
+  /** kind is implicit 'text' for every message written before stickers existed, and for
+   * every ordinary text message since — only sticker messages set it explicitly. */
+  kind: 'text' | 'sticker'
+  text?: string
+  /** Set only when kind === 'sticker' — an id from the fixed ECHO_STICKERS catalog (see
+   * src/data/stickers.ts), never arbitrary content. */
+  stickerId?: string
   createdAtMs: number | null
 }
 
@@ -122,6 +129,8 @@ export interface PrivateChatBridge {
   subscribeRoom(roomId: string, callback: (room: ChatRoomRecord | null) => void): () => void
   subscribeRoomMessages(roomId: string, callback: (messages: ChatMessage[]) => void): () => void
   sendMessage(roomId: string, senderPublicId: string, text: string): Promise<void>
+  /** Sends a sticker message — stickerId must be one from the fixed ECHO_STICKERS catalog. */
+  sendSticker(roomId: string, senderPublicId: string, stickerId: string): Promise<void>
   /** Ends an active room: the other side sees it end in realtime, and the pair is freed to request each other again later — see firestore.rules for exactly what this batch does. */
   endConversation(roomId: string, endedByPublicId: string): Promise<void>
   /** Rooms the given account is currently an active (not-yet-ended) participant of — powers the "you still have an unfinished conversation" reminder. */
@@ -129,6 +138,11 @@ export interface PrivateChatBridge {
   subscribeNotifications(publicId: string, callback: (notifications: ChatNotification[]) => void): () => void
   markNotificationRead(notificationId: string): Promise<void>
   markAllNotificationsRead(notificationIds: string[]): Promise<void>
+  /** Deletes one or more notifications (pass a single-id array for one card) —
+   * Notification Center housekeeping only. Never touches the underlying chatRequests/
+   * chatRooms doc, so an incoming request stays fully answerable from the Chat Requests
+   * page even after its notification card is gone. */
+  deleteNotifications(notificationIds: string[]): Promise<void>
 }
 
 /** Deterministic id for the (unordered) pair of two publicIds — mirrors firestore.rules pairId(). */
@@ -623,7 +637,9 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
             return {
               id: d.id,
               senderPublicId: data.senderPublicId,
+              kind: data.kind === 'sticker' ? 'sticker' : 'text',
               text: data.text,
+              stickerId: data.stickerId,
               createdAtMs: toMillis(data.createdAt),
             }
           }),
@@ -639,10 +655,31 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
       text,
       createdAt: serverTimestamp(),
     })
+    await this.notifyNewMessage(db, roomId, senderPublicId, text.length > 80 ? `${text.slice(0, 80)}…` : text)
+  }
 
-    // Best-effort, separate write (same reasoning as the incoming_chat_request notification
-    // in sendRequest): notifies the other participant so they see a toast/bell entry even
-    // while elsewhere in the app. Never fails the message send itself.
+  async sendSticker(roomId: string, senderPublicId: string, stickerId: string): Promise<void> {
+    const db = getFirebaseFirestore()
+    await addDoc(collection(db, 'chatRooms', roomId, 'messages'), {
+      senderPublicId,
+      kind: 'sticker' as const,
+      stickerId,
+      createdAt: serverTimestamp(),
+    })
+    const sticker = getStickerById(stickerId)
+    await this.notifyNewMessage(db, roomId, senderPublicId, sticker ? `${sticker.emoji} สติกเกอร์` : 'ส่งสติกเกอร์')
+  }
+
+  /** Best-effort, separate write (same reasoning as the incoming_chat_request notification
+   * in sendRequest): notifies the other participant so they see a toast/bell entry even
+   * while elsewhere in the app. Never fails the message send itself. Shared by
+   * sendMessage/sendSticker — only the preview text differs. */
+  private async notifyNewMessage(
+    db: ReturnType<typeof getFirebaseFirestore>,
+    roomId: string,
+    senderPublicId: string,
+    preview: string,
+  ): Promise<void> {
     try {
       const roomSnap = await getDoc(doc(db, 'chatRooms', roomId))
       if (!roomSnap.exists()) return
@@ -658,7 +695,7 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
         fromAvatarId: senderProfile?.avatarId ?? null,
         requestId: null,
         roomId,
-        preview: text.length > 80 ? `${text.slice(0, 80)}…` : text,
+        preview,
         read: false,
         createdAt: serverTimestamp(),
       })
@@ -786,6 +823,18 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
     }
     await batch.commit()
   }
+
+  async deleteNotifications(notificationIds: string[]): Promise<void> {
+    if (notificationIds.length === 0) return
+    const db = getFirebaseFirestore()
+    // Firestore batches cap at 500 writes — the Notification Center only ever loads the
+    // most recent 50 (see subscribeNotifications), so a single batch always suffices here.
+    const batch = writeBatch(db)
+    for (const id of notificationIds) {
+      batch.delete(doc(db, 'notifications', id))
+    }
+    await batch.commit()
+  }
 }
 
 class NoopPrivateChatBridge implements PrivateChatBridge {
@@ -816,6 +865,7 @@ class NoopPrivateChatBridge implements PrivateChatBridge {
     return () => {}
   }
   async sendMessage(): Promise<void> {}
+  async sendSticker(): Promise<void> {}
   async endConversation(): Promise<void> {}
   subscribeActiveRooms(_publicId: string, callback: (rooms: ChatRoomRecord[]) => void): () => void {
     callback([])
@@ -827,6 +877,7 @@ class NoopPrivateChatBridge implements PrivateChatBridge {
   }
   async markNotificationRead(): Promise<void> {}
   async markAllNotificationsRead(): Promise<void> {}
+  async deleteNotifications(): Promise<void> {}
 }
 
 // Without a configured Firebase project there is no other real device to accept a

@@ -106,7 +106,10 @@ export function GardenHUD(props: GardenHUDProps) {
                 key={btn.key}
                 type="button"
                 onClick={props[btn.key]}
-                className="flex flex-col items-center gap-0.5 rounded-2xl px-2.5 py-1.5 text-ink-soft transition active:scale-95"
+                // The "Chat" nav button is redundant on desktop/tablet-landscape, where
+                // GardenWorldChatPanel is already open by default — hidden there so there
+                // aren't two ways to open two different chat surfaces at once.
+                className={`flex flex-col items-center gap-0.5 rounded-2xl px-2.5 py-1.5 text-ink-soft transition active:scale-95 ${btn.key === 'onOpenChat' ? 'lg:hidden' : ''}`}
               >
                 <span className="text-base leading-none" aria-hidden>
                   {btn.icon}

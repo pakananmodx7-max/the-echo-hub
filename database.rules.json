@@ -67,7 +67,7 @@
         ".indexOn": "createdAt",
         "$messageId": {
           ".write": "auth != null && !data.exists() && newData.exists() && newData.child('authorPublicId').val() === root.child('uidToPublicId').child(auth.uid).val() && (!root.child('gardenChatCooldown').child(newData.child('authorPublicId').val()).exists() || now > root.child('gardenChatCooldown').child(newData.child('authorPublicId').val()).val() + 1500)",
-          ".validate": "newData.hasChildren(['authorPublicId', 'authorCodename', 'authorAvatarId', 'kind', 'createdAt']) && newData.child('createdAt').val() === now && ((newData.child('kind').val() === 'text' && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 200) || (newData.child('kind').val() === 'song' && newData.child('song').child('title').isString() && newData.child('song').child('title').val().length <= 120 && newData.child('song').child('artist').isString() && newData.child('song').child('artist').val().length <= 120))",
+          ".validate": "newData.hasChildren(['authorPublicId', 'authorCodename', 'authorAvatarId', 'kind', 'createdAt']) && newData.child('createdAt').val() === now && ((newData.child('kind').val() === 'text' && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 200) || (newData.child('kind').val() === 'song' && newData.child('song').child('title').isString() && newData.child('song').child('title').val().length <= 120 && newData.child('song').child('artist').isString() && newData.child('song').child('artist').val().length <= 120) || (newData.child('kind').val() === 'sticker' && newData.child('stickerId').isString() && newData.child('stickerId').val().length > 0 && newData.child('stickerId').val().length <= 60))",
           "authorPublicId": {
             ".validate": "newData.isString()"
           },
@@ -78,7 +78,7 @@
             ".validate": "newData.isString()"
           },
           "kind": {
-            ".validate": "newData.val() === 'text' || newData.val() === 'song'"
+            ".validate": "newData.val() === 'text' || newData.val() === 'song' || newData.val() === 'sticker'"
           },
           "text": {
             ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 200)"
@@ -88,6 +88,9 @@
             "artist": { ".validate": "newData.isString() && newData.val().length <= 120" },
             "link": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 500)" },
             "$other": { ".validate": false }
+          },
+          "stickerId": {
+            ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 60)"
           },
           "createdAt": {
             ".validate": true

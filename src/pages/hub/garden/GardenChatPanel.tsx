@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Avatar } from '../../../components/Avatar'
 import { Button } from '../../../components/Button'
 import { MessageSafetyNotice } from '../../../components/MessageSafetyNotice'
+import { StickerPicker } from '../../../components/StickerPicker'
 import { evaluateMessageSafety } from '../../../features/messageSafety/evaluateMessageSafety'
 import { useGardenPublicChat } from '../../../hooks/useGardenPublicChat'
+import { getStickerById } from '../../../data/stickers'
 import { GARDEN_CHAT_MAX_LENGTH, GARDEN_CHAT_MIN_INTERVAL_MS } from '../../../data/gardenPrompts'
 
 const QUICK_EMOJI = ['🤍', '✨', '😂', '👍', '🫂']
@@ -28,12 +30,13 @@ interface GardenChatPanelProps {
 }
 
 export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
-  const { messages, sendMessage, reportMessage } = useGardenPublicChat()
+  const { messages, sendMessage, sendSticker, reportMessage } = useGardenPublicChat()
   const [draft, setDraft] = useState('')
   const [mutedIds, setMutedIds] = useState<Set<string>>(() => readMuted())
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null)
   const [rateLimited, setRateLimited] = useState(false)
   const [safetyNotice, setSafetyNotice] = useState<{ severity: 'blocked' | 'critical'; suggestion?: string } | null>(null)
+  const [stickerPickerOpen, setStickerPickerOpen] = useState(false)
   const lastSentAt = useRef(0)
   const listEndRef = useRef<HTMLDivElement>(null)
 
@@ -66,6 +69,24 @@ export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
       authorAvatarId: currentUser.avatarId ?? 'cloud',
       text,
     }).catch((err) => console.error('[garden] sendMessage failed', err))
+  }
+
+  function handleSendSticker(stickerId: string) {
+    // Stickers come only from the fixed ECHO_STICKERS catalog, never free text, so they
+    // skip evaluateMessageSafety entirely — there's nothing for it to evaluate.
+    const now = Date.now()
+    if (now - lastSentAt.current < GARDEN_CHAT_MIN_INTERVAL_MS) {
+      setRateLimited(true)
+      window.setTimeout(() => setRateLimited(false), 1200)
+      return
+    }
+    lastSentAt.current = now
+    void sendSticker({
+      authorPublicId: currentUser.id,
+      authorCodename: currentUser.codename,
+      authorAvatarId: currentUser.avatarId ?? 'cloud',
+      stickerId,
+    }).catch((err) => console.error('[garden] sendSticker failed', err))
   }
 
   function toggleMute(authorId: string) {
@@ -104,7 +125,11 @@ export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
                     ⋯
                   </button>
                 </div>
-                {m.kind === 'song' && m.song ? (
+                {m.kind === 'sticker' ? (
+                  <p className="mt-0.5 text-4xl leading-none" aria-label={getStickerById(m.stickerId)?.label ?? 'sticker'}>
+                    {getStickerById(m.stickerId)?.emoji ?? '💜'}
+                  </p>
+                ) : m.kind === 'song' && m.song ? (
                   <div className="mt-1 rounded-2xl bg-lavender-50 p-2.5">
                     <p className="text-xs font-medium text-lavender-600">🎵 {m.song.title}</p>
                     <p className="text-xs text-ink-soft">{m.song.artist}</p>
@@ -179,6 +204,14 @@ export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
           </div>
         ) : null}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setStickerPickerOpen(true)}
+            aria-label="เลือกสติกเกอร์"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cream-deep text-xl"
+          >
+            🧸
+          </button>
           <input
             type="text"
             value={draft}
@@ -198,6 +231,8 @@ export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
           </Button>
         </div>
       </div>
+
+      <StickerPicker open={stickerPickerOpen} onClose={() => setStickerPickerOpen(false)} onSelect={handleSendSticker} variant="plain" />
     </div>
   )
 }

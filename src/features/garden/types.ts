@@ -38,9 +38,12 @@ export interface GardenChatMessage {
   authorId: string
   authorCodename: string
   authorAvatarId: string
-  kind: 'text' | 'song'
+  kind: 'text' | 'song' | 'sticker'
   text?: string
   song?: { title: string; artist: string; link?: string }
+  /** Set only when kind === 'sticker' — an id from the fixed ECHO_STICKERS catalog (see
+   * src/data/stickers.ts), never arbitrary content. */
+  stickerId?: string
   createdAt: string
 }
 

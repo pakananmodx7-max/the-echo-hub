@@ -36,6 +36,16 @@ export function useChatRoomMessages(roomId: string | undefined) {
     }
   }
 
+  async function sendSticker(stickerId: string) {
+    if (!roomId || !user?.publicId) return
+    setSending(true)
+    try {
+      await privateChatBridge.sendSticker(roomId, user.publicId, stickerId)
+    } finally {
+      setSending(false)
+    }
+  }
+
   async function end() {
     if (!roomId || !user?.publicId) {
       // Never resolve silently here — a missing roomId/publicId means the write was
@@ -47,5 +57,5 @@ export function useChatRoomMessages(roomId: string | undefined) {
     await privateChatBridge.endConversation(roomId, user.publicId)
   }
 
-  return { room, messages, send, sending, end }
+  return { room, messages, send, sendSticker, sending, end }
 }

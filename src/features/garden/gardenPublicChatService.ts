@@ -11,6 +11,14 @@ interface SendTextInput {
   text: string
 }
 
+interface SendStickerInput {
+  authorPublicId: string
+  authorCodename: string
+  authorAvatarId: string
+  /** An id from the fixed ECHO_STICKERS catalog — see src/data/stickers.ts. */
+  stickerId: string
+}
+
 /**
  * Interface-first, same pattern as every other Phase 2/3 service. Everyone currently in
  * the garden shares one `gardenChat/messages` Realtime Database node — no per-device mock
@@ -20,6 +28,7 @@ interface SendTextInput {
 export interface GardenPublicChatService {
   subscribe(callback: (messages: GardenChatMessage[]) => void): () => void
   sendMessage(input: SendTextInput): Promise<void>
+  sendSticker(input: SendStickerInput): Promise<void>
   reportMessage(messageId: string, reason?: string): void
 }
 
@@ -31,9 +40,10 @@ function toGardenChatMessage(id: string, data: Record<string, unknown>): GardenC
     authorId: data.authorPublicId as string,
     authorCodename: data.authorCodename as string,
     authorAvatarId: data.authorAvatarId as string,
-    kind: data.kind as 'text' | 'song',
+    kind: data.kind as 'text' | 'song' | 'sticker',
     text: data.text as string | undefined,
     song: data.song as GardenChatMessage['song'],
+    stickerId: data.stickerId as string | undefined,
     createdAt: typeof data.createdAt === 'number' ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
   }
 }
@@ -79,6 +89,24 @@ class FirebaseGardenPublicChatService implements GardenPublicChatService {
     )
   }
 
+  async sendSticker(input: SendStickerInput): Promise<void> {
+    const uid = getFirebaseAuth().currentUser?.uid
+    if (!uid) return
+    const db = getFirebaseDatabase()
+    const newRef = push(ref(db, 'gardenChat/messages'))
+    await set(newRef, {
+      authorPublicId: input.authorPublicId,
+      authorCodename: input.authorCodename,
+      authorAvatarId: input.authorAvatarId,
+      kind: 'sticker' as const,
+      stickerId: input.stickerId,
+      createdAt: serverTimestamp(),
+    })
+    void set(ref(db, `gardenChatCooldown/${input.authorPublicId}`), serverTimestamp()).catch((err) =>
+      console.error('[garden] chat cooldown write failed', err),
+    )
+  }
+
   reportMessage(messageId: string, _reason?: string): void {
     // No moderation backend yet — matches the mock service's prior local-only behavior.
     console.info('[garden] message reported (not yet backed by a moderation queue)', messageId)
@@ -91,6 +119,7 @@ class NoopGardenPublicChatService implements GardenPublicChatService {
     return () => {}
   }
   async sendMessage(): Promise<void> {}
+  async sendSticker(): Promise<void> {}
   reportMessage(): void {}
 }
 

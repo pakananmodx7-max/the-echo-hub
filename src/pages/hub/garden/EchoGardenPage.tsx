@@ -19,6 +19,7 @@ import { GardenErrorBoundary } from './GardenErrorBoundary'
 import { GardenHUD } from './GardenHUD'
 import { GardenSettingsPanel } from './GardenSettingsPanel'
 import { GardenChatPanel } from './GardenChatPanel'
+import { GardenWorldChatPanel } from './GardenWorldChatPanel'
 import { GardenOnlinePanel } from './GardenOnlinePanel'
 import { GardenNearbyPlayerCard } from './GardenNearbyPlayerCard'
 import { SongTreeModal } from './modals/SongTreeModal'
@@ -202,42 +203,51 @@ export function EchoGardenPage() {
           }
         >
           <Suspense fallback={<GardenLoadingScreen />}>
-            <div className="relative h-full w-full">
-              <GardenScene
-                controls={controls}
-                playerAvatarConfig={avatarConfig}
-                spawn={spawn}
-                members={members}
-                onNearestChange={setNearestId}
-                onNearestPlayerChange={setNearestPlayerId}
-                onLocalMove={reportLocalMove}
-                paused={!pageVisible}
-                quality={quality.settings}
-                onFrame={quality.reportFrame}
-              />
-              <GardenHUD
-                controls={controls}
-                controlMode={controlMode}
-                memberCount={members.length + 1}
-                interaction={nearestDef ? { icon: nearestDef.icon, label: nearestDef.label } : null}
-                onInteract={() => nearestId && handleSelectObject(nearestId)}
-                onOpenChat={() => setPanel('chat')}
-                onOpenActivities={() => setPanel('activities')}
-                onOpenOnline={() => setPanel('online')}
-                onOpenSettings={() => setPanel('settings')}
-                onExit={() => navigate('/hub')}
-                onRecenterCamera={() => {
-                  controls.cameraRecenterRequestRef.current = true
-                }}
-                music={musicProps}
-              />
-              {nearestPlayer ? (
-                <GardenNearbyPlayerCard
-                  member={nearestPlayer}
-                  onGreet={() => window.alert(`ทักทาย ${nearestPlayer.codename} แล้ว 👋`)}
-                  onRequestChat={() => handleGardenChatRequest(nearestPlayer)}
+            <div className="flex h-full w-full">
+              <div className="relative h-full flex-1">
+                <GardenScene
+                  controls={controls}
+                  playerAvatarConfig={avatarConfig}
+                  spawn={spawn}
+                  members={members}
+                  onNearestChange={setNearestId}
+                  onNearestPlayerChange={setNearestPlayerId}
+                  onLocalMove={reportLocalMove}
+                  paused={!pageVisible}
+                  quality={quality.settings}
+                  onFrame={quality.reportFrame}
                 />
-              ) : null}
+                <GardenHUD
+                  controls={controls}
+                  controlMode={controlMode}
+                  memberCount={members.length + 1}
+                  interaction={nearestDef ? { icon: nearestDef.icon, label: nearestDef.label } : null}
+                  onInteract={() => nearestId && handleSelectObject(nearestId)}
+                  onOpenChat={() => setPanel('chat')}
+                  onOpenActivities={() => setPanel('activities')}
+                  onOpenOnline={() => setPanel('online')}
+                  onOpenSettings={() => setPanel('settings')}
+                  onExit={() => navigate('/hub')}
+                  onRecenterCamera={() => {
+                    controls.cameraRecenterRequestRef.current = true
+                  }}
+                  music={musicProps}
+                />
+                {nearestPlayer ? (
+                  <GardenNearbyPlayerCard
+                    member={nearestPlayer}
+                    onGreet={() => window.alert(`ทักทาย ${nearestPlayer.codename} แล้ว 👋`)}
+                    onRequestChat={() => handleGardenChatRequest(nearestPlayer)}
+                  />
+                ) : null}
+              </div>
+              {/* Desktop/tablet-landscape only — persistent, open-by-default World Chat
+                  (see spec). The flex row above reserves real layout space for it so the
+                  3D canvas resizes around it (R3F handles the resize automatically)
+                  instead of the panel covering any HUD element. Mobile still uses the
+                  floating 💬 nav button -> the full-screen `panel === 'chat'` overlay
+                  below, unchanged. */}
+              <GardenWorldChatPanel currentUser={gardenUser} />
             </div>
           </Suspense>
         </GardenErrorBoundary>

@@ -11,6 +11,7 @@ export function useGardenPublicChat() {
   return {
     messages,
     sendMessage: gardenPublicChatService.sendMessage.bind(gardenPublicChatService),
+    sendSticker: gardenPublicChatService.sendSticker.bind(gardenPublicChatService),
     reportMessage: gardenPublicChatService.reportMessage.bind(gardenPublicChatService),
   }
 }

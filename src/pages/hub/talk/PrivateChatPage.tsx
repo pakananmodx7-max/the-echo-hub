@@ -3,11 +3,13 @@ import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Avatar } from '../../../components/Avatar'
 import { MessageSafetyNotice } from '../../../components/MessageSafetyNotice'
+import { StickerPicker } from '../../../components/StickerPicker'
 import { confirmLeavingActiveChat, registerActiveChatGuard } from '../../../features/chat/activeChatNavGuard'
 import { evaluateMessageSafety } from '../../../features/messageSafety/evaluateMessageSafety'
 import { useAuth } from '../../../hooks/useAuth'
 import { useChatRoomMessages } from '../../../hooks/useChatRoomMessages'
 import { useNotifications } from '../../../hooks/useNotifications'
+import { getStickerById } from '../../../data/stickers'
 
 const DARK_MODE_KEY = 'echo-hub:chat-dark-mode'
 const INTRO_ACK_PREFIX = 'echo-hub:chat-intro-ack:'
@@ -44,7 +46,7 @@ export function PrivateChatPage() {
   const { roomId } = useParams<{ roomId: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { room, messages, send, sending, end } = useChatRoomMessages(roomId)
+  const { room, messages, send, sendSticker, sending, end } = useChatRoomMessages(roomId)
   const { notifications, markRead } = useNotifications()
   const [text, setText] = useState('')
   const [darkMode, setDarkMode] = useState(readStoredDarkMode)
@@ -59,6 +61,7 @@ export function PrivateChatPage() {
   const listRef = useRef<HTMLDivElement>(null)
   const [introAcked, setIntroAcked] = useState(() => readIntroAck(roomId))
   const [safetyNotice, setSafetyNotice] = useState<{ severity: 'blocked' | 'critical'; suggestion?: string } | null>(null)
+  const [stickerPickerOpen, setStickerPickerOpen] = useState(false)
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
@@ -159,6 +162,13 @@ export function PrivateChatPage() {
     const toSend = text
     setText('')
     await send(toSend)
+  }
+
+  async function handleSendSticker(stickerId: string) {
+    if (!canChat) return
+    // Stickers come only from the fixed ECHO_STICKERS catalog, never free text, so they
+    // skip evaluateMessageSafety entirely — there's nothing for it to evaluate.
+    await sendSticker(stickerId)
   }
 
   async function handleConfirmEnd() {
@@ -263,18 +273,30 @@ export function PrivateChatPage() {
           <div className="flex flex-col gap-2.5">
             {messages.map((m) => {
               const mine = m.senderPublicId === myPublicId
+              const sticker = m.kind === 'sticker' ? getStickerById(m.stickerId) : undefined
               return (
                 <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
-                    style={{
-                      background: mine ? 'var(--chat-bubble-out-bg)' : 'var(--chat-bubble-in-bg)',
-                      color: mine ? 'var(--chat-bubble-out-text)' : 'var(--chat-bubble-in-text)',
-                      boxShadow: mine ? 'none' : 'var(--chat-bubble-in-shadow)',
-                    }}
-                  >
-                    {m.text}
-                  </div>
+                  {m.kind === 'sticker' ? (
+                    <div className="flex max-w-[75%] flex-col items-center px-1">
+                      <span className="text-6xl leading-none" aria-hidden>
+                        {sticker?.emoji ?? '💜'}
+                      </span>
+                      <span className="mt-1 text-xs" style={{ color: 'var(--chat-text-faint)' }}>
+                        {sticker?.label ?? 'สติกเกอร์'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      className="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                      style={{
+                        background: mine ? 'var(--chat-bubble-out-bg)' : 'var(--chat-bubble-in-bg)',
+                        color: mine ? 'var(--chat-bubble-out-text)' : 'var(--chat-bubble-in-text)',
+                        boxShadow: mine ? 'none' : 'var(--chat-bubble-in-shadow)',
+                      }}
+                    >
+                      {m.text}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -316,6 +338,15 @@ export function PrivateChatPage() {
             </div>
           ) : null}
           <form onSubmit={handleSubmit} className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setStickerPickerOpen(true)}
+              aria-label="เลือกสติกเกอร์"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl active:scale-95 transition"
+              style={{ background: 'var(--chat-bubble-in-bg)' }}
+            >
+              🧸
+            </button>
             <input
               value={text}
               onChange={(e) => {
@@ -450,6 +481,13 @@ export function PrivateChatPage() {
           </div>
         </div>
       ) : null}
+
+      <StickerPicker
+        open={stickerPickerOpen}
+        onClose={() => setStickerPickerOpen(false)}
+        onSelect={(id) => void handleSendSticker(id)}
+        variant="chat"
+      />
     </div>
   )
 }

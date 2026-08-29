@@ -255,14 +255,26 @@ service cloud.firestore {
         allow read: if isSignedIn()
           && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
 
-        // Ended rooms reject new messages outright.
+        // Ended rooms reject new messages outright. Two shapes: an ordinary text message
+        // (kind omitted, exactly as before stickers existed — backward compatible with
+        // every message ever written) or a sticker message, whose only content is an id
+        // from the fixed, app-controlled ECHO_STICKERS catalog (see src/data/stickers.ts)
+        // — never arbitrary text/HTML.
         allow create: if isSignedIn()
           && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.status == 'active'
           && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
           && request.resource.data.senderPublicId == myPublicId()
-          && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
-          && request.resource.data.text.size() <= 2000;
+          && (
+            (request.resource.data.get('kind', 'text') == 'text'
+              && request.resource.data.text is string
+              && request.resource.data.text.size() > 0
+              && request.resource.data.text.size() <= 2000)
+            ||
+            (request.resource.data.get('kind', 'text') == 'sticker'
+              && request.resource.data.stickerId is string
+              && request.resource.data.stickerId.size() > 0
+              && request.resource.data.stickerId.size() <= 60)
+          );
 
         allow update, delete: if false;
       }
@@ -294,7 +306,13 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
         && request.resource.data.read == true;
 
-      allow delete: if false;
+      // Notification Center housekeeping only — the owner may delete their own notification
+      // row at any time. This can NEVER touch chatRequests or chatRooms (Firestore security
+      // rules cannot cascade to other documents/collections), so deleting a notification —
+      // including an incoming_chat_request one — never changes a request's real status; the
+      // student can still accept/decline a still-pending request from the Chat Requests page,
+      // which reads chatRequests directly and was never driven by this collection.
+      allow delete: if isSignedIn() && resource != null && myPublicId() == resource.data.ownerPublicId;
 
       allow create: if isSignedIn()
         && request.resource.data.fromPublicId == myPublicId()

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Avatar } from '../../components/Avatar'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
+import { Modal } from '../../components/Modal'
 import { PageHeader } from '../../components/PageHeader'
 import {
   privateChatBridge,
@@ -42,12 +43,17 @@ interface DisplayItem {
  */
 export function NotificationsPage() {
   const navigate = useNavigate()
-  const { notifications, unreadCount, markRead, markAllRead } = useNotifications()
+  const { notifications, unreadCount, markRead, markAllRead, deleteNotifications } = useNotifications()
   const receivedRequests = useReceivedChatRequests()
   const sentRequests = useSentChatRequests()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [errorId, setErrorId] = useState<string | null>(null)
   const [errorText, setErrorText] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DisplayItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [bulkConfirm, setBulkConfirm] = useState<'read' | 'all' | null>(null)
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const requestById = useMemo(() => {
     const map = new Map<string, ChatRequestRecord>()
@@ -131,6 +137,62 @@ export function NotificationsPage() {
     return { status: getEffectiveRequestStatus(resolved), roomId: resolved.roomId }
   }
 
+  /** A notification must never be swept up by a bulk-delete action while it's still a live,
+   * actionable "please respond" request — deleting the notification never actually answers
+   * the request (see privateChatBridge.deleteNotifications), so silently bulk-deleting a
+   * still-pending one would just make it vanish from view while the sender keeps waiting.
+   * Unresolved (subscriptions still loading their first snapshot) is treated the same as
+   * pending — protect first, never guess. Individual, explicit deletion of one card is a
+   * separate, always-available action (see handleDeleteOne) since that's a deliberate
+   * per-card choice, not a bulk sweep. */
+  function isProtectedActiveRequest(n: ChatNotification): boolean {
+    if (n.type !== 'incoming_chat_request') return false
+    const resolved = resolveIncomingRequest(n)
+    return resolved === null || resolved.status === 'pending'
+  }
+
+  const readClearableIds = notifications.filter((n) => n.read && !isProtectedActiveRequest(n)).map((n) => n.id)
+  const allDeletableIds = notifications.filter((n) => !isProtectedActiveRequest(n)).map((n) => n.id)
+
+  function handleRequestDelete(item: DisplayItem, e: React.MouseEvent) {
+    e.stopPropagation()
+    setDeleteError(null)
+    setDeleteTarget(item)
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteNotifications(deleteTarget.ids)
+      setDeleteTarget(null)
+    } catch {
+      setDeleteError('ลบการแจ้งเตือนไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function handleConfirmBulk() {
+    const ids = bulkConfirm === 'all' ? allDeletableIds : readClearableIds
+    if (ids.length === 0) {
+      setBulkConfirm(null)
+      return
+    }
+    setBulkBusy(true)
+    try {
+      await deleteNotifications(ids)
+      setBulkConfirm(null)
+    } catch {
+      // Left open with the busy state cleared so the student can just try again — a bulk
+      // action failing partway is rare (a single Firestore batch) and not worth a separate
+      // error UI here.
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -148,7 +210,30 @@ export function NotificationsPage() {
         {items.length === 0 ? (
           <p className="mt-10 text-center text-sm text-ink-faint">ยังไม่มีการแจ้งเตือน</p>
         ) : (
-          <div className="flex flex-col gap-3">
+          <>
+            {readClearableIds.length > 0 || allDeletableIds.length > 0 ? (
+              <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+                {readClearableIds.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setBulkConfirm('read')}
+                    className="text-xs font-medium text-ink-faint underline underline-offset-2"
+                  >
+                    ล้างการแจ้งเตือนที่อ่านแล้ว
+                  </button>
+                ) : null}
+                {allDeletableIds.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setBulkConfirm('all')}
+                    className="text-xs font-medium text-pink-text underline underline-offset-2"
+                  >
+                    ลบทั้งหมด
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-3">
             {items.map((item) => {
               const n = item.latest
               const incoming = n.type === 'incoming_chat_request' ? resolveIncomingRequest(n) : null
@@ -167,7 +252,17 @@ export function NotificationsPage() {
                             ? `💬 ${n.fromCodename} ส่งข้อความใหม่ ${item.messageCount} ข้อความ`
                             : notificationText(n)}
                         </p>
-                        {!item.read ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-red-500" aria-hidden /> : null}
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {!item.read ? <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden /> : null}
+                          <button
+                            type="button"
+                            onClick={(e) => handleRequestDelete(item, e)}
+                            aria-label="ลบการแจ้งเตือน"
+                            className="rounded-full p-1 text-ink-faint transition hover:bg-cream-deep active:scale-95"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
                       {n.type === 'new_message' && n.preview ? (
                         <p className="mt-0.5 truncate text-xs text-ink-soft">{n.preview}</p>
@@ -222,9 +317,50 @@ export function NotificationsPage() {
                 </Card>
               )
             })}
-          </div>
+            </div>
+          </>
         )}
       </div>
+
+      {deleteTarget ? (
+        <Modal open onClose={() => (!deleting ? setDeleteTarget(null) : undefined)}>
+          <h2 className="text-lg font-bold text-ink">ลบการแจ้งเตือนนี้หรือไม่?</h2>
+          {deleteTarget.latest.type === 'incoming_chat_request' &&
+          resolveIncomingRequest(deleteTarget.latest)?.status === 'pending' ? (
+            <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+              การลบนี้ไม่ได้เป็นการตอบรับหรือปฏิเสธคำขอ คุณยังสามารถตอบคำขอนี้ได้ที่หน้า "คำขอสนทนา"
+            </p>
+          ) : null}
+          {deleteError ? <p className="mt-3 text-sm text-pink-text">{deleteError}</p> : null}
+          <div className="mt-5 flex flex-col gap-2.5">
+            <Button fullWidth variant="soft-pink" onClick={handleConfirmDelete} disabled={deleting}>
+              {deleting ? 'กำลังลบ...' : 'ลบ'}
+            </Button>
+            <Button fullWidth variant="ghost" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              ยกเลิก
+            </Button>
+          </div>
+        </Modal>
+      ) : null}
+
+      <Modal open={bulkConfirm !== null} onClose={() => (!bulkBusy ? setBulkConfirm(null) : undefined)}>
+        <h2 className="text-lg font-bold text-ink">
+          {bulkConfirm === 'all' ? 'ลบการแจ้งเตือนทั้งหมดหรือไม่?' : 'ล้างการแจ้งเตือนที่อ่านแล้วหรือไม่?'}
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+          {bulkConfirm === 'all'
+            ? 'จะลบการแจ้งเตือนทั้งหมด ยกเว้นคำขอสนทนาที่ยังรอการตอบกลับ'
+            : 'จะลบเฉพาะการแจ้งเตือนที่อ่านแล้ว คำขอสนทนาที่ยังรอการตอบกลับจะไม่ถูกลบ'}
+        </p>
+        <div className="mt-5 flex flex-col gap-2.5">
+          <Button fullWidth variant="soft-pink" onClick={handleConfirmBulk} disabled={bulkBusy}>
+            {bulkBusy ? 'กำลังลบ...' : 'ลบ'}
+          </Button>
+          <Button fullWidth variant="ghost" onClick={() => setBulkConfirm(null)} disabled={bulkBusy}>
+            ยกเลิก
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -36,5 +36,13 @@ export function useNotifications() {
     await privateChatBridge.markAllNotificationsRead(unreadIds)
   }
 
-  return { notifications, unreadCount, markRead, markAllRead }
+  /** Deletes one or more notifications (pass a single-id array for one card) —
+   * Notification Center housekeeping only, never touches the underlying chatRequests/
+   * chatRooms doc (see privateChatBridge.deleteNotifications). The live subscription above
+   * removes them from `notifications`/`unreadCount` automatically. */
+  async function deleteNotifications(notificationIds: string[]): Promise<void> {
+    await privateChatBridge.deleteNotifications(notificationIds)
+  }
+
+  return { notifications, unreadCount, markRead, markAllRead, deleteNotifications }
 }
