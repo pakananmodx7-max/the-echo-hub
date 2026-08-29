@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Avatar } from '../../../components/Avatar'
+import { MessageSafetyNotice } from '../../../components/MessageSafetyNotice'
 import { confirmLeavingActiveChat, registerActiveChatGuard } from '../../../features/chat/activeChatNavGuard'
+import { evaluateMessageSafety } from '../../../features/messageSafety/evaluateMessageSafety'
 import { useAuth } from '../../../hooks/useAuth'
 import { useChatRoomMessages } from '../../../hooks/useChatRoomMessages'
 import { useNotifications } from '../../../hooks/useNotifications'
@@ -56,6 +58,7 @@ export function PrivateChatPage() {
   const navResolveRef = useRef<((leave: boolean) => void) | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const [introAcked, setIntroAcked] = useState(() => readIntroAck(roomId))
+  const [safetyNotice, setSafetyNotice] = useState<{ severity: 'blocked' | 'critical'; suggestion?: string } | null>(null)
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
@@ -144,6 +147,15 @@ export function PrivateChatPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!text.trim() || !canChat) return
+    // Evaluated locally, before anything ever reaches Firestore — an unsafe draft never
+    // gets written, and the original text stays right here in the composer so the
+    // student can edit and resend (see evaluateMessageSafety.ts).
+    const result = evaluateMessageSafety(text)
+    if (!result.allowed) {
+      setSafetyNotice({ severity: result.severity as 'blocked' | 'critical', suggestion: result.suggestion })
+      return
+    }
+    setSafetyNotice(null)
     const toSend = text
     setText('')
     await send(toSend)
@@ -285,27 +297,45 @@ export function PrivateChatPage() {
           </button>
         </div>
       ) : canChat ? (
-        <form
-          onSubmit={handleSubmit}
-          className="flex items-center gap-2 border-t px-4 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
-          style={{ borderColor: 'var(--chat-border)' }}
-        >
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="พิมพ์ข้อความ..."
-            className="min-w-0 flex-1 rounded-2xl border px-4 py-2.5 text-sm outline-none disabled:opacity-50"
-            style={{ background: 'var(--chat-composer-bg)', borderColor: 'var(--chat-composer-border)', color: 'var(--chat-text)' }}
-          />
-          <button
-            type="submit"
-            disabled={sending || !text.trim()}
-            className="shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-50"
-            style={{ background: 'var(--chat-accent)', color: 'var(--chat-accent-text)' }}
-          >
-            ส่ง
-          </button>
-        </form>
+        <div className="border-t px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3" style={{ borderColor: 'var(--chat-border)' }}>
+          {safetyNotice ? (
+            <div className="mb-2.5">
+              <MessageSafetyNotice
+                severity={safetyNotice.severity}
+                suggestion={safetyNotice.suggestion}
+                onUseSuggestion={
+                  safetyNotice.suggestion
+                    ? () => {
+                        setText(safetyNotice.suggestion ?? '')
+                        setSafetyNotice(null)
+                      }
+                    : undefined
+                }
+                variant="chat"
+              />
+            </div>
+          ) : null}
+          <form onSubmit={handleSubmit} className="flex items-center gap-2">
+            <input
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value)
+                if (safetyNotice) setSafetyNotice(null)
+              }}
+              placeholder="พิมพ์ข้อความ..."
+              className="min-w-0 flex-1 rounded-2xl border px-4 py-2.5 text-[16px] outline-none disabled:opacity-50"
+              style={{ background: 'var(--chat-composer-bg)', borderColor: 'var(--chat-composer-border)', color: 'var(--chat-text)' }}
+            />
+            <button
+              type="submit"
+              disabled={sending || !text.trim()}
+              className="shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-50"
+              style={{ background: 'var(--chat-accent)', color: 'var(--chat-accent-text)' }}
+            >
+              ส่ง
+            </button>
+          </form>
+        </div>
       ) : null}
 
       {endConfirmOpen ? (

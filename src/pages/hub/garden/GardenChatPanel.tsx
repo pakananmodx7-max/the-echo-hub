@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Avatar } from '../../../components/Avatar'
 import { Button } from '../../../components/Button'
+import { MessageSafetyNotice } from '../../../components/MessageSafetyNotice'
+import { evaluateMessageSafety } from '../../../features/messageSafety/evaluateMessageSafety'
 import { useGardenPublicChat } from '../../../hooks/useGardenPublicChat'
 import { GARDEN_CHAT_MAX_LENGTH, GARDEN_CHAT_MIN_INTERVAL_MS } from '../../../data/gardenPrompts'
 
@@ -31,6 +33,7 @@ export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
   const [mutedIds, setMutedIds] = useState<Set<string>>(() => readMuted())
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null)
   const [rateLimited, setRateLimited] = useState(false)
+  const [safetyNotice, setSafetyNotice] = useState<{ severity: 'blocked' | 'critical'; suggestion?: string } | null>(null)
   const lastSentAt = useRef(0)
   const listEndRef = useRef<HTMLDivElement>(null)
 
@@ -41,6 +44,14 @@ export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
   function handleSend() {
     const text = draft.trim()
     if (!text) return
+    // Public World Chat gets exactly the same validator as Private Chat — never a weaker
+    // filter — and an unsafe draft never reaches RTDB (see evaluateMessageSafety.ts).
+    const result = evaluateMessageSafety(text)
+    if (!result.allowed) {
+      setSafetyNotice({ severity: result.severity as 'blocked' | 'critical', suggestion: result.suggestion })
+      return
+    }
+    setSafetyNotice(null)
     const now = Date.now()
     if (now - lastSentAt.current < GARDEN_CHAT_MIN_INTERVAL_MS) {
       setRateLimited(true)
@@ -150,17 +161,37 @@ export function GardenChatPanel({ currentUser }: GardenChatPanelProps) {
           ))}
         </div>
         {rateLimited ? <p className="mb-1 text-xs text-pink-text">พิมพ์เร็วไปนิดนะ รอสักครู่แล้วลองใหม่</p> : null}
+        {safetyNotice ? (
+          <div className="mb-2">
+            <MessageSafetyNotice
+              severity={safetyNotice.severity}
+              suggestion={safetyNotice.suggestion}
+              onUseSuggestion={
+                safetyNotice.suggestion
+                  ? () => {
+                      setDraft((safetyNotice.suggestion ?? '').slice(0, GARDEN_CHAT_MAX_LENGTH))
+                      setSafetyNotice(null)
+                    }
+                  : undefined
+              }
+              variant="plain"
+            />
+          </div>
+        ) : null}
         <div className="flex items-center gap-2">
           <input
             type="text"
             value={draft}
-            onChange={(e) => setDraft(e.target.value.slice(0, GARDEN_CHAT_MAX_LENGTH))}
+            onChange={(e) => {
+              setDraft(e.target.value.slice(0, GARDEN_CHAT_MAX_LENGTH))
+              if (safetyNotice) setSafetyNotice(null)
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSend()
             }}
             placeholder="พิมพ์อะไรบางอย่าง..."
             maxLength={GARDEN_CHAT_MAX_LENGTH}
-            className="flex-1 rounded-full border border-lavender-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-lavender-400 focus:ring-2 focus:ring-lavender-100"
+            className="flex-1 rounded-full border border-lavender-100 bg-white px-4 py-2.5 text-[16px] outline-none focus:border-lavender-400 focus:ring-2 focus:ring-lavender-100"
           />
           <Button onClick={handleSend} disabled={!draft.trim()} className="shrink-0 !px-4 !py-2.5">
             ส่ง
