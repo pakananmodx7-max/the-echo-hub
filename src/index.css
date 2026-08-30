@@ -28,8 +28,61 @@
   --shadow-card: 0 4px 20px -4px rgba(122, 92, 179, 0.15);
 }
 
-html {
+:root {
   color-scheme: light;
+}
+
+/* ---------------------------------------------------------------------------
+   Global dark mode — see src/context/ThemeContext.tsx for the light/dark/system
+   state machine that sets `data-theme` on <html>. Tailwind v4 compiles every
+   utility class (bg-cream, text-ink, bg-lavender-50, bg-white, ...) to
+   `property: var(--color-*)` rather than a literal value (confirmed against this
+   project's own build output), so redefining these SAME tokens here is what makes
+   the whole app — every page listed in the dark-mode spec, using its existing
+   markup completely unchanged — repaint for dark mode. `--color-white` is
+   Tailwind's own built-in token; overriding it too is what turns every `bg-white`
+   card (Card.tsx, Modal.tsx, ...) into a soft dark card instead of a jarring
+   bright-white one, without touching those components at all.
+
+   ECHO GARDEN's 3D scene is untouched by design: Three.js/WebGL materials are
+   plain JS values, never CSS-variable-driven, so nothing here can reach them —
+   only the Garden's 2D HUD overlays (which already use these same tokens) pick
+   this up, exactly as intended ("Garden overlays/HUD may respect the global
+   theme... without changing the Garden's intended atmosphere").
+
+   Palette direction: deep navy/dark-purple backgrounds, lavender/purple accents
+   kept vibrant (not washed out), readable off-white (not gray) text, softer dark
+   cards rather than pure #000 — mirroring PrivateChatPage's own already-shipped
+   `.chat-dark` values for visual consistency between the two. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-cream: #201a2b;
+  --color-cream-deep: #2a2338;
+  --color-white: #2e2740;
+
+  --color-lavender-50: #362d49;
+  --color-lavender-100: #453a5c;
+  --color-lavender-200: #5a4b78;
+  --color-lavender-300: #8f72d6;
+  --color-lavender-400: #a480f5;
+  --color-lavender-500: #9873e0;
+  --color-lavender-600: #7c5ecf;
+
+  --color-pink-glow: #4a2e42;
+  --color-pink-deep: #ff9fc0;
+  --color-pink-text: #ffb3d1;
+
+  --color-mint: #24352f;
+  --color-mint-deep: #6fcf9d;
+  --color-mint-text: #7fd9ab;
+
+  --color-ink: #f3ecff;
+  --color-ink-soft: #c7bce0;
+  --color-ink-faint: #948aa8;
+
+  --shadow-soft: 0 8px 30px -8px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 4px 20px -4px rgba(0, 0, 0, 0.35);
 }
 
 /* Private-chat-only theme. Scoped to `.chat-scope` (PrivateChatPage's own root) so it

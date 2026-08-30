@@ -6,6 +6,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#fdfaf4" />
     <title>THE ECHO HUB</title>
+    <script>
+      // Resolves and applies the theme BEFORE React mounts/paints, so a "dark" or
+      // system-dark preference never flashes light for a frame first. Mirrors
+      // src/context/ThemeContext.tsx's own resolution logic exactly (kept in sync by
+      // hand — this script intentionally has no imports, since it must run before any
+      // module has loaded) and never itself writes to storage, so it can't cause the
+      // divergence it exists to prevent.
+      (function () {
+        try {
+          var stored = localStorage.getItem('echoTheme');
+          var theme = stored === 'light' || stored === 'dark' || stored === 'system'
+            ? stored
+            : (localStorage.getItem('echo-hub:chat-dark-mode') === '1' ? 'dark' : 'system');
+          var resolved = theme === 'system'
+            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : theme;
+          document.documentElement.setAttribute('data-theme', resolved);
+          document.documentElement.style.colorScheme = resolved;
+          if (resolved === 'dark') {
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#201a2b');
+          }
+        } catch (e) {
+          // Best-effort only — worst case is one frame of the light theme, never a crash.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

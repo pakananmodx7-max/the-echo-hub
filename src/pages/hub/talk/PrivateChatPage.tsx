@@ -8,20 +8,13 @@ import { confirmLeavingActiveChat, registerActiveChatGuard } from '../../../feat
 import { recordSafetyBlock } from '../../../features/analytics/analyticsService'
 import { evaluateMessageSafety } from '../../../features/messageSafety/evaluateMessageSafety'
 import { useAuth } from '../../../hooks/useAuth'
+import { useChatReadReceipt } from '../../../hooks/useChatReadReceipt'
 import { useChatRoomMessages } from '../../../hooks/useChatRoomMessages'
 import { useNotifications } from '../../../hooks/useNotifications'
+import { useTheme } from '../../../hooks/useTheme'
 import { getStickerById } from '../../../data/stickers'
 
-const DARK_MODE_KEY = 'echo-hub:chat-dark-mode'
 const INTRO_ACK_PREFIX = 'echo-hub:chat-intro-ack:'
-
-function readStoredDarkMode(): boolean {
-  try {
-    return localStorage.getItem(DARK_MODE_KEY) === '1'
-  } catch {
-    return false
-  }
-}
 
 // Per-session, per-device acknowledgement — deliberately local-only (no Firestore field),
 // so A and B each see the intro exactly once per NEW room id and acknowledge
@@ -40,8 +33,9 @@ function readIntroAck(roomId: string | undefined): boolean {
  * The private 1:1 chat thread opened once a chat request is accepted. Only the two
  * room participants can ever reach real messages here — enforced by firestore.rules,
  * not just this UI. No voice/video/file upload and no AI analysis of messages, by design.
- * Visually scoped under `.chat-scope`/`.chat-dark` (see index.css) so the dark mode
- * toggle here never affects the rest of THE ECHO HUB.
+ * Visually scoped under `.chat-scope`/`.chat-dark` (see index.css), which now follows
+ * the app-wide theme (see ThemeContext.tsx) instead of its own independent toggle — a
+ * single ☀️/🌙/⚙️ control in Me now governs light/dark everywhere, chat included.
  */
 export function PrivateChatPage() {
   const { roomId } = useParams<{ roomId: string }>()
@@ -49,8 +43,9 @@ export function PrivateChatPage() {
   const { user } = useAuth()
   const { room, messages, send, sendSticker, sending, end } = useChatRoomMessages(roomId)
   const { notifications, markRead } = useNotifications()
+  const { resolvedTheme } = useTheme()
+  const darkMode = resolvedTheme === 'dark'
   const [text, setText] = useState('')
-  const [darkMode, setDarkMode] = useState(readStoredDarkMode)
   const [endConfirmOpen, setEndConfirmOpen] = useState(false)
   const [ending, setEnding] = useState(false)
   const [endError, setEndError] = useState<string | null>(null)
@@ -87,19 +82,6 @@ export function PrivateChatPage() {
     setIntroAcked(true)
   }
 
-  function toggleDarkMode() {
-    setDarkMode((prev) => {
-      const next = !prev
-      try {
-        localStorage.setItem(DARK_MODE_KEY, next ? '1' : '0')
-      } catch {
-        // Best-effort persistence only — a private/blocked storage context just means the
-        // toggle resets next visit, which is harmless.
-      }
-      return next
-    })
-  }
-
   const myPublicId = user?.publicId ?? null
   const partnerId = room?.participants.find((id) => id !== myPublicId) ?? null
   const partner = partnerId ? room?.profiles[partnerId] : null
@@ -109,6 +91,23 @@ export function PrivateChatPage() {
   // ended room (nothing left to introduce), and not until the room has actually loaded.
   const showIntro = !!room && isActive && !introAcked
   const canChat = isActive && introAcked
+
+  // Realtime "อ่านแล้ว" — see useChatReadReceipt.ts for the exact read definition (mounted
+  // on this page + tab visible + room active). isActive (not canChat) gates my own cursor
+  // update, matching firestore.rules' own "room must be active" requirement exactly; a
+  // freshly-opened room the intro hasn't been acknowledged on yet still counts as "viewing
+  // it" for read-receipt purposes.
+  const partnerLastReadAtMs = useChatReadReceipt(roomId, myPublicId, partnerId, !!isActive, messages.length)
+  // Only the SENDER's own latest message ever needs a "ส่งแล้ว/อ่านแล้ว" label — walk from
+  // the end so earlier own-messages never render one, avoiding the "three separate labels"
+  // clutter the spec explicitly calls out.
+  let latestMineMessageId: string | null = null
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].senderPublicId === myPublicId) {
+      latestMineMessageId = messages[i].id
+      break
+    }
+  }
 
   // Marks this room's incoming "new message" bell entries as read while it's open — the
   // user is already looking at the messages, so surfacing a separate unread badge for the
@@ -215,15 +214,6 @@ export function PrivateChatPage() {
         <p className="min-w-0 flex-1 truncate font-semibold" style={{ color: 'var(--chat-text)' }}>
           {partner?.codename ?? 'แชทส่วนตัว'}
         </p>
-        <button
-          type="button"
-          onClick={toggleDarkMode}
-          aria-label={darkMode ? 'สลับเป็นโหมดสว่าง' : 'สลับเป็นโหมดมืด'}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base active:scale-95 transition"
-          style={{ background: 'var(--chat-bubble-in-bg)' }}
-        >
-          <span aria-hidden>{darkMode ? '☀️' : '🌙'}</span>
-        </button>
         {isActive ? (
           <button
             type="button"
@@ -276,8 +266,14 @@ export function PrivateChatPage() {
             {messages.map((m) => {
               const mine = m.senderPublicId === myPublicId
               const sticker = m.kind === 'sticker' ? getStickerById(m.stickerId) : undefined
+              // Only ever computed/rendered for the sender's own single latest message (see
+              // latestMineMessageId above) — every earlier own-message and every incoming
+              // message from the partner never shows a receipt at all.
+              const showReceipt = mine && m.id === latestMineMessageId
+              const isRead =
+                showReceipt && partnerLastReadAtMs != null && m.createdAtMs != null && partnerLastReadAtMs >= m.createdAtMs
               return (
-                <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
                   {m.kind === 'sticker' ? (
                     <div className="flex max-w-[75%] flex-col items-center px-1">
                       <span className="text-6xl leading-none" aria-hidden>
@@ -299,6 +295,11 @@ export function PrivateChatPage() {
                       {m.text}
                     </div>
                   )}
+                  {showReceipt ? (
+                    <span className="mt-0.5 px-1 text-[11px] leading-none" style={{ color: 'var(--chat-text-faint)' }}>
+                      {isRead ? 'อ่านแล้ว ✓✓' : 'ส่งแล้ว ✓'}
+                    </span>
+                  ) : null}
                 </div>
               )
             })}

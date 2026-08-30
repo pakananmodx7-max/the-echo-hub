@@ -135,6 +135,15 @@ export interface PrivateChatBridge {
   sendSticker(roomId: string, senderPublicId: string, stickerId: string): Promise<void>
   /** Ends an active room: the other side sees it end in realtime, and the pair is freed to request each other again later — see firestore.rules for exactly what this batch does. */
   endConversation(roomId: string, endedByPublicId: string): Promise<void>
+  /** Live read-cursor timestamp for one participant of a room — null means they haven't
+   * read anything here yet (or the room/doc doesn't exist). Used to derive "อ่านแล้ว" by
+   * comparing against a message's own createdAtMs; never a per-message read flag. */
+  subscribeReadState(roomId: string, publicId: string, callback: (lastReadAtMs: number | null) => void): () => void
+  /** Marks the caller's OWN read cursor "caught up to now" for this room — see
+   * firestore.rules' readState subcollection for why only that participant can ever call
+   * this for themselves, and why it silently no-ops (via a clean permission denial) once
+   * the room has ended. Best-effort: a failed write here must never break chatting. */
+  markRoomRead(roomId: string, myPublicId: string): Promise<void>
   /** Rooms the given account is currently an active (not-yet-ended) participant of — powers the "you still have an unfinished conversation" reminder. */
   subscribeActiveRooms(publicId: string, callback: (rooms: ChatRoomRecord[]) => void): () => void
   subscribeNotifications(publicId: string, callback: (notifications: ChatNotification[]) => void): () => void
@@ -793,6 +802,29 @@ class FirebasePrivateChatBridge implements PrivateChatBridge {
     console.log('[endConversation] success', { roomId })
   }
 
+  subscribeReadState(roomId: string, publicId: string, callback: (lastReadAtMs: number | null) => void): () => void {
+    const db = getFirebaseFirestore()
+    return onSnapshot(
+      doc(db, 'chatRooms', roomId, 'readState', publicId),
+      (snap) => callback(snap.exists() ? toMillis(snap.data().lastReadAt) : null),
+      (err) => console.error('[chat] subscribeReadState failed', err),
+    )
+  }
+
+  async markRoomRead(roomId: string, myPublicId: string): Promise<void> {
+    const db = getFirebaseFirestore()
+    try {
+      // A plain (non-merge) set: the doc only ever holds this one field, so this always
+      // satisfies firestore.rules' `keys().hasOnly(['lastReadAt'])` / `affectedKeys()`
+      // check on both create and update. Denied cleanly (not thrown as a surprise) once
+      // the room has ended, since the rule requires status == 'active' — see the comment
+      // there for why that's what "preserves the final read state" as a real guarantee.
+      await setDoc(doc(db, 'chatRooms', roomId, 'readState', myPublicId), { lastReadAt: serverTimestamp() })
+    } catch (err) {
+      console.error('[chat] markRoomRead failed', { roomId, message: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
   subscribeActiveRooms(publicId: string, callback: (rooms: ChatRoomRecord[]) => void): () => void {
     const db = getFirebaseFirestore()
     const q = query(
@@ -884,6 +916,11 @@ class NoopPrivateChatBridge implements PrivateChatBridge {
   async sendMessage(): Promise<void> {}
   async sendSticker(): Promise<void> {}
   async endConversation(): Promise<void> {}
+  subscribeReadState(_roomId: string, _publicId: string, callback: (lastReadAtMs: number | null) => void): () => void {
+    callback(null)
+    return () => {}
+  }
+  async markRoomRead(): Promise<void> {}
   subscribeActiveRooms(_publicId: string, callback: (rooms: ChatRoomRecord[]) => void): () => void {
     callback([])
     return () => {}

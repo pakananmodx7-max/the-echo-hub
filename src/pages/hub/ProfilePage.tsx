@@ -11,8 +11,16 @@ import { AVATARS } from '../../data/avatars'
 import { generateCodename } from '../../data/codenames'
 import { getMoodById } from '../../data/moods'
 import { useAuth } from '../../hooks/useAuth'
+import { useTheme } from '../../hooks/useTheme'
+import type { EchoTheme } from '../../context/ThemeContext'
 import { getBangkokDateString } from '../../lib/thailandDate'
 import type { MoodId } from '../../types'
+
+const THEME_OPTIONS: { id: EchoTheme; emoji: string; label: string }[] = [
+  { id: 'light', emoji: '☀️', label: 'สว่าง' },
+  { id: 'dark', emoji: '🌙', label: 'มืด' },
+  { id: 'system', emoji: '⚙️', label: 'ตามระบบ' },
+]
 
 const ALL_ACTIVITIES = [
   { id: 'send-song', label: 'Send a Song' },
@@ -25,9 +33,11 @@ const ALL_ACTIVITIES = [
 export function ProfilePage() {
   const navigate = useNavigate()
   const { user, logout, setCodename, setMood, completeDailyCheckin, resetDemoData } = useAuth()
+  const { theme, setTheme } = useTheme()
   const [editOpen, setEditOpen] = useState(false)
   const [moodOpen, setMoodOpen] = useState(false)
   const [privacyOpen, setPrivacyOpen] = useState(false)
+  const [themeOpen, setThemeOpen] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
 
   const [draftName, setDraftName] = useState(user?.codename ?? '')
@@ -130,6 +140,21 @@ export function ProfilePage() {
           </span>
         </Card>
 
+        <Card
+          onClick={() => setThemeOpen(true)}
+          className="cursor-pointer flex items-center justify-between"
+        >
+          <div>
+            <p className="font-semibold text-ink">🎨 ธีมการแสดงผล</p>
+            <p className="mt-0.5 text-sm text-ink-soft">
+              {THEME_OPTIONS.find((t) => t.id === theme)?.emoji} {THEME_OPTIONS.find((t) => t.id === theme)?.label}
+            </p>
+          </div>
+          <span className="text-ink-faint" aria-hidden>
+            ›
+          </span>
+        </Card>
+
         <Button variant="secondary" fullWidth onClick={handleLogout}>
           ออกจากระบบ
         </Button>
@@ -206,6 +231,38 @@ export function ProfilePage() {
         <Button fullWidth className="mt-4" onClick={() => setPrivacyOpen(false)}>
           เข้าใจแล้ว
         </Button>
+      </Modal>
+
+      <Modal open={themeOpen} onClose={() => setThemeOpen(false)}>
+        <h2 className="text-lg font-bold text-ink">🎨 ธีมการแสดงผล</h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink-soft">เลือกโหมดสีที่ต้องการให้ THE ECHO HUB แสดงผล</p>
+        <div className="mt-4 flex flex-col gap-2.5">
+          {THEME_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                setTheme(opt.id)
+                setThemeOpen(false)
+              }}
+              className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-left text-[15px] font-semibold transition ${
+                theme === opt.id
+                  ? 'border-lavender-500 bg-lavender-50 text-lavender-600'
+                  : 'border-lavender-100 text-ink-soft'
+              }`}
+            >
+              <span className="text-xl" aria-hidden>
+                {opt.emoji}
+              </span>
+              <span className="flex-1">{opt.label}</span>
+              {theme === opt.id ? (
+                <span className="text-lavender-500" aria-hidden>
+                  ✓
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
       </Modal>
 
       <Modal open={resetOpen} onClose={() => setResetOpen(false)}>

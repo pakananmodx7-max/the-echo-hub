@@ -380,6 +380,43 @@ service cloud.firestore {
 
         allow update, delete: if false;
       }
+
+      // Realtime "read" cursor for private-chat read receipts ("อ่านแล้ว") — one document
+      // per participant, holding ONLY a server timestamp of when THEY last had this room
+      // open and visible. Never message content, never who-read-what beyond "as of this
+      // server time, this participant has seen everything up to here" — the client derives
+      // "read" purely by comparing this timestamp against a message's own createdAt, so no
+      // per-message read flag is ever written (see privateChatBridge.ts markRoomRead).
+      //
+      // Security: the document id IS the owning participant's own publicId, so a sender can
+      // never forge the recipient's read status — myPublicId() (resolved server-side from
+      // the caller's own uid, never client-supplied) can only ever equal {publicId} for the
+      // account that publicId actually belongs to. Gated to the room's own participants and
+      // to an `active` room only, so the read cursor can never be created for a room the
+      // caller isn't part of, and freezes automatically the moment the room ends (satisfies
+      // "preserve the final read state after conversation ends" as a rule, not just a UI
+      // convention) — this can never reactivate an ended room, send a message, or touch any
+      // other room field; it is a fully separate document.
+      match /readState/{publicId} {
+        allow read: if isSignedIn()
+          && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
+
+        allow create: if isSignedIn()
+          && myPublicId() == publicId
+          && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
+          && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.status == 'active'
+          && request.resource.data.keys().hasOnly(['lastReadAt'])
+          && request.resource.data.lastReadAt == request.time;
+
+        allow update: if isSignedIn()
+          && myPublicId() == publicId
+          && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
+          && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.status == 'active'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastReadAt'])
+          && request.resource.data.lastReadAt == request.time;
+
+        allow delete: if false;
+      }
     }
 
     // A notification for the Notification Center bell, owned by ownerPublicId (only they
