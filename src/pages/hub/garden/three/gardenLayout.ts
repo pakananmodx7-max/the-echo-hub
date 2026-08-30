@@ -7,20 +7,25 @@ export interface GardenObjectDef {
   obstacleRadius: number
 }
 
-// Map Improvement phase: garden footprint grew from a 7-unit half-width square (old
-// GARDEN_BOUND) to 10.5 — roughly 2.25x the walkable area — while every existing
-// interactive object keeps its id/behavior, just repositioned into the new zone layout
-// below. See the zone comments for the "Entrance → Plaza → Waterfall/Group areas" shape.
-export const GARDEN_BOUND = 10.5
+// Garden V2: footprint grew again, from 10.5 to 16 (~2.3x the walkable area, roughly the
+// same growth ratio as the prior "Map Improvement phase" below) — every existing
+// interactive object/table/landmark keeps its id/position, the extra room is used
+// entirely for the new south Stage/DJ/Dance Floor cluster (Zone I/J/K) plus a reserved,
+// still-empty Zone L lawn. See the zone comments for the full shape.
+//
+// (Map Improvement phase, for history: grew from a 7-unit half-width square to 10.5.)
+export const GARDEN_BOUND = 16
 export const INTERACTION_RADIUS = 2.1
 export const OBSTACLE_MARGIN = 0.35
+/** Proximity radius for the new seat-sit prompt — tighter than INTERACTION_RADIUS since a seat is a small, precise target next to its table/obstacle. */
+export const SEAT_INTERACTION_RADIUS = 1.3
 
 // Ground/fog sizing lives here (not GardenScene.tsx) so it stays next to GARDEN_BOUND —
-// the walkable square's corners reach GARDEN_BOUND*sqrt(2) ≈ 14.8, so the visual ground
+// the walkable square's corners reach GARDEN_BOUND*sqrt(2) ≈ 22.6, so the visual ground
 // circle needs a comfortably larger radius or the far corners would poke past the grass.
-export const GARDEN_GROUND_RADIUS = 16
-export const GARDEN_FOG_NEAR = 13
-export const GARDEN_FOG_FAR = 32
+export const GARDEN_GROUND_RADIUS = 24
+export const GARDEN_FOG_NEAR = 16
+export const GARDEN_FOG_FAR = 46
 
 /**
  * Zone A — Entrance / Spawn Garden (north, z > 5): the exit gate + a welcoming spawn
@@ -38,7 +43,17 @@ export const GARDEN_FOG_FAR = 32
  * two separated pockets away from the busy Plaza.
  * Zone G — Draw & Listen / Music Area: coincides with the existing Song Tree spot — no
  * behavior change, only repositioned.
- * Zone H — Future Activity Lawn (south, around [0, -9]): left empty on purpose.
+ * Zone H — the old south path terminus around [0, -9.3] — now the entrance to the Zone
+ * I/J/K cluster below (the "future lawn" itself moved further out to the new Zone L).
+ * Zone I — Performance Stage, Zone J — DJ Booth (on the stage), Zone K — Dance Floor (the
+ * open area just in front of the stage) — see STAGE_POSITION / DJ_BOOTH_POSITION /
+ * DANCE_FLOOR_POSITION below. The stage is a solid raised landmark you walk up to (like
+ * the pavilion or central tree), not a multi-level walkable surface — this engine has no
+ * per-object elevation for the avatar, and adding one would be exactly the kind of
+ * movement-system rewrite the spec says not to do.
+ * Zone L — Future Activity Lawn (southeast, around [9, -12]): a new flat patch, left
+ * empty on purpose — same idea as the old Zone H, just relocated now that Zone H's spot
+ * is built out.
  */
 export const GARDEN_OBJECTS: GardenObjectDef[] = [
   { id: 'song-tree', position: [3.4, 4.1], icon: '🌳', label: 'ดู Song Tree', obstacleRadius: 0.55 },
@@ -70,6 +85,27 @@ export function pickSpawnPoint(): [number, number] {
   return [point[0], point[1]]
 }
 
+// --- Stage / DJ / Dance Floor (Zone I/J/K) --------------------------------------------
+
+/** Center of the raised stage platform. */
+export const STAGE_POSITION: [number, number] = [0, -13]
+export const STAGE_HALF_WIDTH = 3
+export const STAGE_HALF_DEPTH = 1.6
+export const STAGE_HEIGHT = 0.45
+/** Sits on the back of the stage. */
+export const DJ_BOOTH_POSITION: [number, number] = [0, -14.1]
+export const SPEAKER_POSITIONS: [number, number][] = [
+  [-2.7, -11.9],
+  [2.7, -11.9],
+]
+/** The open area right in front of the stage — a proximity zone, not an obstacle. */
+export const DANCE_FLOOR_POSITION: [number, number] = [0, -9.8]
+export const DANCE_FLOOR_RADIUS = 2.4
+
+/** Zone L — reserved, deliberately empty (see the zone comment above GARDEN_OBJECTS). */
+export const FUTURE_LAWN_POSITION: [number, number] = [9, -12]
+export const FUTURE_LAWN_RADIUS = 2.6
+
 // --- Landmarks ---------------------------------------------------------------------
 
 /** Where the waterfall's rock wall base sits — the water falls along -x, facing east. */
@@ -98,11 +134,17 @@ export const LANTERN_SPOTS: [number, number][] = [
   [4.0, -3.0],
 ]
 
-/** Individual seating in the quiet garden around the pool — atmosphere only, not interactive. */
+/** Individual seating in the quiet garden around the pool — now real, sittable solo seats (see SEATS below). */
 export const QUIET_BENCH_SPOTS: [number, number][] = [
   [-7.45, 1.05],
   [-7.24, -3.57],
   [-6.25, -0.13],
+]
+
+/** Two extra single chairs right beside the waterfall itself — clear of the cliff/pool obstacles. */
+export const WATERFALL_CHAIR_SPOTS: [number, number][] = [
+  [-6.3, -2.2],
+  [-6.3, -0.4],
 ]
 
 // --- Tables --------------------------------------------------------------------------
@@ -155,6 +197,29 @@ export function tableObstacleRadius(size: TableSize): number {
   return TABLE_OBSTACLE_RADIUS[size]
 }
 
+/** How far a table's seats sit from its center, per size class — the table top's own radius plus a fixed gap. */
+const SEAT_RING_RADIUS: Record<TableSize, number> = {
+  individual: 0.32 + 0.5,
+  small: 0.55 + 0.5,
+  medium: 0.7 + 0.5,
+  large: 0.95 + 0.5,
+}
+
+/**
+ * Evenly spaced seat anchors around a round table, offset just past its edge — the exact
+ * math GardenTables.tsx uses to place its stool instances, exported here so the seat
+ * interaction/occupancy system (SEATS below) can never drift out of sync with what's
+ * actually rendered.
+ */
+export function tableSeatSpots(table: TableSpec): [number, number][] {
+  const radius = SEAT_RING_RADIUS[table.size]
+  const [cx, cz] = table.position
+  return Array.from({ length: table.seats }, (_, i) => {
+    const angle = (i / table.seats) * Math.PI * 2 + table.rotation
+    return [cx + Math.cos(angle) * radius, cz + Math.sin(angle) * radius] as [number, number]
+  })
+}
+
 // --- Collision (decorative / non-interactive obstacles) ------------------------------
 
 export interface DecorObstacle {
@@ -182,11 +247,25 @@ const FLOWER_ARCH_POST_OBSTACLES: DecorObstacle[] = [
 ]
 
 const QUIET_BENCH_OBSTACLES: DecorObstacle[] = QUIET_BENCH_SPOTS.map((position) => ({ position, radius: 0.65 }))
+const WATERFALL_CHAIR_OBSTACLES: DecorObstacle[] = WATERFALL_CHAIR_SPOTS.map((position) => ({ position, radius: 0.4 }))
 
 const TABLE_OBSTACLES: DecorObstacle[] = [...INDIVIDUAL_TABLES, ...GROUP_TABLES].map((t) => ({
   position: t.position,
   radius: TABLE_OBSTACLE_RADIUS[t.size],
 }))
+
+/**
+ * The stage platform's footprint, approximated as three overlapping circles along its
+ * width (same "a few circles instead of a rectangle" approach used for the pavilion) —
+ * solid all the way through, since (unlike the pavilion's open canopy) this is a raised
+ * platform players should walk around, not under.
+ */
+const STAGE_OBSTACLES: DecorObstacle[] = [
+  { position: [STAGE_POSITION[0] - 2, STAGE_POSITION[1]], radius: 1.7 },
+  { position: [STAGE_POSITION[0], STAGE_POSITION[1]], radius: 1.9 },
+  { position: [STAGE_POSITION[0] + 2, STAGE_POSITION[1]], radius: 1.7 },
+]
+const SPEAKER_OBSTACLES: DecorObstacle[] = SPEAKER_POSITIONS.map((position) => ({ position, radius: 0.35 }))
 
 /** Every non-interactive obstacle in the map — tap-to-move must route around all of these (req. #11). */
 export const GARDEN_DECOR_OBSTACLES: DecorObstacle[] = [
@@ -196,7 +275,10 @@ export const GARDEN_DECOR_OBSTACLES: DecorObstacle[] = [
   ...PAVILION_POST_OBSTACLES,
   ...FLOWER_ARCH_POST_OBSTACLES,
   ...QUIET_BENCH_OBSTACLES,
+  ...WATERFALL_CHAIR_OBSTACLES,
   ...TABLE_OBSTACLES,
+  ...STAGE_OBSTACLES,
+  ...SPEAKER_OBSTACLES,
 ]
 
 // --- Paths -----------------------------------------------------------------------------
@@ -227,8 +309,11 @@ const GARDEN_PATH_WAYPOINTS: PathWaypoints[] = [
   { points: [[0, 0], [-3.4, -0.5], [-6.4, -1.1], [-8.3, -1.3]], width: 1.6 },
   // Plaza → Group/Flower area (east)
   { points: [[0, 0], [2.6, -0.7], [5.0, -1.6], [6.9, -2.9]], width: 1.5 },
-  // Plaza → Future Activity Lawn (south)
-  { points: [[0, 0], [0, -3.3], [0, -6.6], [0, -9.3]], width: 1.7 },
+  // Plaza → Stage/DJ/Dance Floor (south) — Garden V2 extends this same spine further
+  // south into the newly-walkable space instead of adding a second parallel path.
+  { points: [[0, 0], [0, -3.3], [0, -6.6], [0, -9.3], [0, -10.6], [0, -12.0]], width: 1.7 },
+  // Branch: Dance Floor → Future Activity Lawn (Zone L, southeast)
+  { points: [[0, -10.6], [4.5, -11.3], [9, -12]], width: 1.3 },
   // Branch: Group area → Private Bench (east pocket)
   { points: [[5.0, -1.6], [6.6, -3.3], [7.6, -4.9]], width: 1.1 },
   // Branch: Entrance → Private Bench / Listening Stone (west pocket)
@@ -263,3 +348,63 @@ function segmentsFromWaypoints(paths: PathWaypoints[]): PathSegmentSpec[] {
 }
 
 export const GARDEN_PATH_SEGMENTS: PathSegmentSpec[] = segmentsFromWaypoints(GARDEN_PATH_WAYPOINTS)
+
+// --- Seats (Garden V2) -----------------------------------------------------------------
+
+export interface SeatDef {
+  id: string
+  position: [number, number]
+  /** Facing angle in radians, same convention as the avatar's own walking yaw (atan2(mx, mz)) — the direction a seated avatar looks. */
+  rotation: number
+  kind: 'solo' | 'group'
+}
+
+function tableSeats(table: TableSpec): SeatDef[] {
+  return tableSeatSpots(table).map((position, i) => {
+    const angle = (i / table.seats) * Math.PI * 2 + table.rotation
+    return {
+      id: `${table.id}_seat_${String(i + 1).padStart(2, '0')}`,
+      position,
+      // Face inward toward the table center, opposite the outward angle used to place the seat.
+      rotation: angle + Math.PI,
+      kind: table.seats > 1 ? 'group' : 'solo',
+    }
+  })
+}
+
+function facingTowards(from: [number, number], to: [number, number]): number {
+  return Math.atan2(to[0] - from[0], to[1] - from[1])
+}
+
+/**
+ * Every sittable seat in the garden — one canonical registry shared by the proximity/sit
+ * interaction system, the occupancy sync (gardenSeatService.ts writes/reads seat ids from
+ * here), and the remote-player renderer (RemoteGardenPlayer positions a seated member at
+ * `SEATS.find(s => s.id === seatId).position`, never at their own stale presence x/z — see
+ * the Garden V2 plan). Table seats reuse the exact same tableSeatSpots math that drives
+ * GardenTables.tsx's visual stool instances, so a seat's anchor and its rendered stool can
+ * never drift apart.
+ */
+export const SEATS: SeatDef[] = [
+  ...INDIVIDUAL_TABLES.flatMap(tableSeats),
+  ...GROUP_TABLES.flatMap(tableSeats),
+  ...QUIET_BENCH_SPOTS.map(
+    (position, i): SeatDef => ({
+      id: `pond_bench_${String(i + 1).padStart(2, '0')}`,
+      position,
+      rotation: facingTowards(position, POOL_POSITION),
+      kind: 'solo',
+    }),
+  ),
+  ...WATERFALL_CHAIR_SPOTS.map(
+    (position, i): SeatDef => ({
+      id: `waterfall_chair_${String(i + 1).padStart(2, '0')}`,
+      position,
+      rotation: facingTowards(position, POOL_POSITION),
+      kind: 'solo',
+    }),
+  ),
+]
+
+/** O(1) seat lookup — GardenPlayer reads this every frame while seated (to pin position) and RemoteGardenPlayer reads it for every seated member. */
+export const SEATS_BY_ID: Record<string, SeatDef> = Object.fromEntries(SEATS.map((s) => [s.id, s]))

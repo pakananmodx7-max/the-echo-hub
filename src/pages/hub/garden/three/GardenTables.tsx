@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react'
-import { Instance, Instances } from '@react-three/drei'
-import { GROUP_TABLES, INDIVIDUAL_TABLES, type TableSize, type TableSpec } from './gardenLayout'
+import { Instance, Instances, RoundedBoxGeometry } from '@react-three/drei'
+import { createWoodTexture } from './gardenTextures'
+import { GROUP_TABLES, INDIVIDUAL_TABLES, tableSeatSpots, type TableSize } from './gardenLayout'
 
 const WOOD_TOP = '#c98a5f'
 const WOOD_LEG = '#8a6a4f'
@@ -11,16 +12,6 @@ const GROUP_TABLE_RADIUS: Record<TableSize, number> = {
   small: 0.55,
   medium: 0.7,
   large: 0.95,
-}
-
-/** Evenly spaced seats around a round table, offset just past its edge. */
-function seatSpots(table: TableSpec): [number, number][] {
-  const radius = GROUP_TABLE_RADIUS[table.size] + 0.5
-  const [cx, cz] = table.position
-  return Array.from({ length: table.seats }, (_, i) => {
-    const angle = (i / table.seats) * Math.PI * 2 + table.rotation
-    return [cx + Math.cos(angle) * radius, cz + Math.sin(angle) * radius] as [number, number]
-  })
 }
 
 /**
@@ -34,23 +25,28 @@ function seatSpots(table: TableSpec): [number, number][] {
 // render (it would otherwise recompute allSeatSpots and re-diff five Instances blocks
 // for no visual change).
 export const GardenTables = memo(function GardenTables() {
-  const allSeatSpots = useMemo(() => [...INDIVIDUAL_TABLES, ...GROUP_TABLES].flatMap(seatSpots), [])
+  const allSeatSpots = useMemo(() => [...INDIVIDUAL_TABLES, ...GROUP_TABLES].flatMap(tableSeatSpots), [])
+  const wood = useMemo(() => createWoodTexture(), [])
 
   return (
     <>
-      {/* Individual "โต๊ะเดี่ยว" tabletops — small square tops, scattered on purpose (see gardenLayout.ts) */}
+      {/* Individual "โต๊ะเดี่ยว" tabletops — small square tops, scattered on purpose (see
+          gardenLayout.ts). Garden V2: a small bevel radius (RoundedBoxGeometry, kept at a
+          low smoothness/bevelSegments so it's still cheap — computed once, shared by
+          every instance) plus a grain-streaked wood texture, instead of a sharp-edged
+          flat-colored box. */}
       <Instances limit={12} range={INDIVIDUAL_TABLES.length}>
-        <boxGeometry args={[0.62, 0.06, 0.62]} />
-        <meshStandardMaterial color={WOOD_TOP} roughness={0.75} />
+        <RoundedBoxGeometry args={[0.62, 0.06, 0.62]} radius={0.012} smoothness={2} bevelSegments={2} />
+        <meshStandardMaterial map={wood} color={WOOD_TOP} roughness={0.7} />
         {INDIVIDUAL_TABLES.map((t) => (
           <Instance key={t.id} position={[t.position[0], 0.52, t.position[1]]} rotation={[0, t.rotation, 0]} />
         ))}
       </Instances>
 
-      {/* Group table round tops — one shared unit cylinder, scaled per size class */}
+      {/* Group table round tops — one shared unit cylinder, scaled per size class (already round, no bevel needed). */}
       <Instances limit={12} range={GROUP_TABLES.length}>
-        <cylinderGeometry args={[1, 1, 0.07, 20]} />
-        <meshStandardMaterial color={WOOD_TOP} roughness={0.75} />
+        <cylinderGeometry args={[1, 1, 0.07, 24]} />
+        <meshStandardMaterial map={wood} color={WOOD_TOP} roughness={0.7} />
         {GROUP_TABLES.map((t) => {
           const r = GROUP_TABLE_RADIUS[t.size]
           return <Instance key={t.id} position={[t.position[0], 0.5, t.position[1]]} scale={[r, 1, r]} />

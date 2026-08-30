@@ -16,6 +16,12 @@ export interface GardenControls {
   moveTargetRef: { current: [number, number] | null }
   /** Set true to smoothly ease cameraYawRef toward the avatar's current facing — only ever set by an explicit "recenter camera" button press, never automatically. */
   cameraRecenterRequestRef: { current: boolean }
+  /** Garden V2: the seat id the local player currently occupies, or null. Read every
+   * frame by GardenPlayer (freezes movement/position-sync while set) and by
+   * TapToMoveController (ignores tap-to-move while set) — same plain-ref convention as
+   * every other control here, since both are read inside useFrame/native pointer
+   * handlers, never through React state. */
+  sittingSeatIdRef: { current: string | null }
 }
 
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'])
@@ -39,6 +45,7 @@ export function useGardenControls(): GardenControls {
       cameraDistRef: { current: DEFAULT_CAMERA_DIST },
       moveTargetRef: { current: null },
       cameraRecenterRequestRef: { current: false },
+      sittingSeatIdRef: { current: null },
     }),
     [],
   )

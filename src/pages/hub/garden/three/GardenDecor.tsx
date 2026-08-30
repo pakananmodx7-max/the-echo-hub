@@ -2,6 +2,7 @@ import { memo, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Instance, Instances } from '@react-three/drei'
 import * as THREE from 'three'
+import { irregularRockGeometries } from './gardenRocks'
 
 interface GardenDecorProps {
   density: number
@@ -26,18 +27,19 @@ const FLOWER_COLORS = ['#ffd7e6', '#ff9fc0', '#f6f0ff', '#e0c8ff']
 // move doesn't re-run the bush/flower/stone scatter generation and re-diff ~115 Instances.
 export const GardenDecor = memo(function GardenDecor({ density, fireflies }: GardenDecorProps) {
   const rand = useMemo(() => mulberry32(20260826), [])
+  const rockVariants = useMemo(() => irregularRockGeometries(4), [])
 
-  // Radius ranges widened for the Map Improvement phase's bigger garden (GARDEN_BOUND
-  // 10.5, ground radius 16) — a bit past GARDEN_BOUND on purpose so the outer ring still
-  // reads as garden rather than bare grass, while staying clear of the Plaza/path hub
-  // near the center. Purely cosmetic scatter (no collision), same as before — it isn't
-  // zone-aware, so an occasional bush near a table/path edge is an accepted trade-off,
-  // same as the original design.
+  // Radius ranges widened again for Garden V2's bigger garden (GARDEN_BOUND 16, ground
+  // radius 24) — a bit past GARDEN_BOUND on purpose so the outer ring still reads as
+  // garden rather than bare grass, while staying clear of the Plaza/path hub near the
+  // center. Purely cosmetic scatter (no collision), same as before — it isn't zone-aware,
+  // so an occasional bush near a table/path/stage edge is an accepted trade-off, same as
+  // the original design.
   const bushSpots = useMemo(() => {
     const count = Math.max(2, Math.round(14 * density))
     return Array.from({ length: count }, () => {
       const angle = rand() * Math.PI * 2
-      const radius = 3.5 + rand() * 10.5
+      const radius = 3.5 + rand() * 15
       return [Math.cos(angle) * radius, Math.sin(angle) * radius] as [number, number]
     })
   }, [density, rand])
@@ -46,7 +48,7 @@ export const GardenDecor = memo(function GardenDecor({ density, fireflies }: Gar
     const count = Math.max(3, Math.round(32 * density))
     return Array.from({ length: count }, () => {
       const angle = rand() * Math.PI * 2
-      const radius = 2.5 + rand() * 12
+      const radius = 2.5 + rand() * 17
       return [Math.cos(angle) * radius, Math.sin(angle) * radius, Math.floor(rand() * FLOWER_COLORS.length)] as [
         number,
         number,
@@ -59,7 +61,7 @@ export const GardenDecor = memo(function GardenDecor({ density, fireflies }: Gar
     const count = Math.max(2, Math.round(10 * density))
     return Array.from({ length: count }, () => {
       const angle = rand() * Math.PI * 2
-      const radius = 4 + rand() * 10.5
+      const radius = 4 + rand() * 15
       return [Math.cos(angle) * radius, Math.sin(angle) * radius, rand() * Math.PI] as [number, number, number]
     })
   }, [density, rand])
@@ -86,13 +88,20 @@ export const GardenDecor = memo(function GardenDecor({ density, fireflies }: Gar
         ))}
       </Instances>
 
-      <Instances limit={30} range={stoneSpots.length}>
-        <dodecahedronGeometry args={[0.16, 0]} />
-        <meshStandardMaterial color="#a79bb0" roughness={0.95} />
-        {stoneSpots.map(([x, z, r], i) => (
-          <Instance key={i} position={[x, 0.1, z]} rotation={[r * 0.4, r, r * 0.2]} />
-        ))}
-      </Instances>
+      {/* Garden V2: 4 precomputed irregular rock shapes (see gardenRocks.ts) cycled across
+          instances instead of one uniform dodecahedron — a separate Instances block per
+          shape variant (still ~4 draw calls total for every stone in the garden, not one
+          per stone) so no two neighboring rocks look identical. */}
+      {rockVariants.map((geo, v) => (
+        <Instances key={v} limit={10} range={stoneSpots.filter((_, i) => i % rockVariants.length === v).length} geometry={geo}>
+          <meshStandardMaterial color="#a79bb0" roughness={0.95} />
+          {stoneSpots
+            .filter((_, i) => i % rockVariants.length === v)
+            .map(([x, z, r], i) => (
+              <Instance key={i} position={[x, 0.1, z]} scale={0.16} rotation={[r * 0.4, r, r * 0.2]} />
+            ))}
+        </Instances>
+      ))}
 
       <Instances limit={40} range={flowerSpots.length}>
         <sphereGeometry args={[0.06, 6, 6]} />

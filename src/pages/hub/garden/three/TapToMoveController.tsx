@@ -10,7 +10,10 @@ interface TapToMoveControllerProps {
 
 const DRAG_THRESHOLD_PX = 8
 const MIN_CAMERA_DIST = 4
-const MAX_CAMERA_DIST = 10
+// Garden V2: nudged up from 10 so the bigger map (GARDEN_BOUND 16) can still be seen
+// zoomed all the way out — a numeric zoom-range tweak only, no change to the camera's
+// rotation/follow behavior itself (see the camera-preservation notes throughout this file).
+const MAX_CAMERA_DIST = 13
 
 /**
  * Owns every pointer gesture on the garden canvas: single-finger drag
@@ -119,6 +122,11 @@ export function TapToMoveController({ controls }: TapToMoveControllerProps) {
       if (!wasSingle || multiTouchRef.current || draggedRef.current) {
         return
       }
+
+      // Garden V2 req. #14/#24: sitting ignores tap-to-move entirely — the player must
+      // stand up first. Drag-to-rotate above this check still works while seated (the
+      // camera is never frozen, only movement).
+      if (controls.sittingSeatIdRef.current) return
 
       // Quick tap/click with no drag: raycast onto the garden ground plane.
       const ndc = toNDC(e.clientX, e.clientY)

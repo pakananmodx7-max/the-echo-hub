@@ -18,6 +18,7 @@ interface GardenHUDProps {
   onOpenChat: () => void
   onOpenActivities: () => void
   onOpenOnline: () => void
+  onOpenEmotes: () => void
   onOpenSettings: () => void
   onExit: () => void
   /** Optional, explicit "ease the camera back behind me" action — never triggered automatically (see the camera-motion-sickness fix in GardenPlayer.tsx). */
@@ -39,13 +40,14 @@ interface GardenHUDProps {
 }
 
 const NAV_BUTTONS: {
-  key: 'onOpenChat' | 'onOpenActivities' | 'onOpenOnline' | 'onOpenSettings' | 'onExit'
+  key: 'onOpenChat' | 'onOpenActivities' | 'onOpenOnline' | 'onOpenEmotes' | 'onOpenSettings' | 'onExit'
   icon: string
   label: string
 }[] = [
   { key: 'onOpenChat', icon: '💬', label: 'Chat' },
   { key: 'onOpenActivities', icon: '🌳', label: 'Activities' },
   { key: 'onOpenOnline', icon: '👥', label: 'Online' },
+  { key: 'onOpenEmotes', icon: '😊', label: 'ท่าทาง' },
   { key: 'onOpenSettings', icon: '⚙️', label: 'Settings' },
   { key: 'onExit', icon: '🚪', label: 'ออกจากสวน' },
 ]

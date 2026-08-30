@@ -1,20 +1,29 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { SKIN_TONES } from '../../../../data/gardenAvatarOptions'
 import type { GardenAvatarConfig } from '../../../../features/garden/types'
+import type { GardenEmoteId } from '../../../../data/gardenEmotes'
 
 interface GardenCharacterProps {
   config: GardenAvatarConfig
   /** When provided, walking bob/sway plays while this ref is true — read every frame, not React state. */
   walkingRef?: { current: boolean }
+  /** Garden V2: bends the legs at a hip pivot for a seated silhouette (see LegsMesh). */
+  seated?: boolean
+  /** Garden V2 emotes — id + a start timestamp (ms, Date.now()-comparable). Every client
+   * (owner and viewers alike) derives elapsed time locally from `emoteStartedAt`; no
+   * animation frames are ever synced over the network — see gardenEmoteService.ts. */
+  emote?: GardenEmoteId | null
+  emoteStartedAt?: number | null
 }
 
 function skinHex(tone: GardenAvatarConfig['skinTone']): string {
   return SKIN_TONES.find((t) => t.id === tone)?.hex ?? '#e8c19d'
 }
 
-export function GardenCharacter({ config, walkingRef }: GardenCharacterProps) {
+export function GardenCharacter({ config, walkingRef, seated = false, emote = null, emoteStartedAt = null }: GardenCharacterProps) {
   const bodyRef = useRef<THREE.Group>(null)
   const leftArmRef = useRef<THREE.Mesh>(null)
   const rightArmRef = useRef<THREE.Mesh>(null)
@@ -25,72 +34,166 @@ export function GardenCharacter({ config, walkingRef }: GardenCharacterProps) {
   useFrame((state) => {
     const t = state.clock.elapsedTime + t0.current
     const walking = walkingRef?.current ?? false
+    const elapsed = emote && emoteStartedAt != null ? Math.max(0, (Date.now() - emoteStartedAt) / 1000) : 0
+
     if (bodyRef.current) {
       const bobSpeed = walking ? 8 : 1.6
       const bobAmount = walking ? 0.035 : 0.018
-      bodyRef.current.position.y = Math.sin(t * bobSpeed) * bobAmount
-      bodyRef.current.rotation.z = walking ? Math.sin(t * bobSpeed) * 0.05 : 0
+      let posY = Math.sin(t * bobSpeed) * bobAmount
+      let rotZ = walking ? Math.sin(t * bobSpeed) * 0.05 : 0
+      let rotY = 0
+
+      // Emote poses reuse the same body/arm refs the walk-bob animation already drives —
+      // no extra meshes, just different rotation targets. "spin" and "dance_02" rotate
+      // ONLY this character's own group Y (never GardenPlayer's movement-facing yaw or the
+      // camera — see the Garden V2 plan's camera-preservation requirement).
+      if (emote === 'dance_01') {
+        posY += Math.abs(Math.sin(elapsed * 6)) * 0.05
+        rotZ = Math.sin(elapsed * 6) * 0.16
+      } else if (emote === 'dance_02') {
+        rotY = Math.sin(elapsed * 4.5) * 0.3
+      } else if (emote === 'spin') {
+        rotY = (elapsed / 0.9) * Math.PI * 2
+      } else if (emote === 'jump') {
+        posY += Math.sin(Math.min(elapsed / 0.9, 1) * Math.PI) * 0.22
+      }
+      bodyRef.current.position.y = posY
+      bodyRef.current.rotation.z = rotZ
+      bodyRef.current.rotation.y = rotY
     }
+
     if (leftArmRef.current && rightArmRef.current) {
-      const swing = walking ? Math.sin(t * 8) * 0.35 : Math.sin(t * 1.6) * 0.03
-      leftArmRef.current.rotation.x = swing
-      rightArmRef.current.rotation.x = -swing
+      let leftX = walking ? Math.sin(t * 8) * 0.35 : Math.sin(t * 1.6) * 0.03
+      let rightX = walking ? -Math.sin(t * 8) * 0.35 : -Math.sin(t * 1.6) * 0.03
+      let leftZ = 0
+      let rightZ = 0
+
+      if (emote === 'wave') {
+        rightX = -2.2 + Math.sin(elapsed * 9) * 0.3
+      } else if (emote === 'clap') {
+        leftX = -1.6
+        rightX = -1.6
+        leftZ = Math.sin(elapsed * 12) * 0.18
+        rightZ = -Math.sin(elapsed * 12) * 0.18
+      } else if (emote === 'dance_01') {
+        const s = Math.sin(elapsed * 6)
+        leftX = -0.5 + s * 0.7
+        rightX = -0.5 - s * 0.7
+      } else if (emote === 'dance_02') {
+        leftX = -0.35 + Math.sin(elapsed * 5) * 0.5
+        rightX = -0.35 + Math.cos(elapsed * 5) * 0.5
+      } else if (emote === 'raise_hands') {
+        leftX = -2.5
+        rightX = -2.5
+        leftZ = 0.3
+        rightZ = -0.3
+      } else if (emote === 'jump') {
+        leftX = -1.7
+        rightX = -1.7
+      }
+
+      leftArmRef.current.rotation.x = leftX
+      rightArmRef.current.rotation.x = rightX
+      leftArmRef.current.rotation.z = leftZ
+      rightArmRef.current.rotation.z = rightZ
     }
   })
 
   return (
     <group ref={bodyRef}>
-      <LegsMesh config={config} skin={skin} />
+      <LegsMesh config={config} skin={skin} seated={seated} />
 
-      {/* torso */}
-      <mesh position={[0, 0.73, 0]} castShadow>
-        <capsuleGeometry args={[0.235, 0.33, 4, 10]} />
-        <meshStandardMaterial color={config.topColor} roughness={0.75} />
-      </mesh>
-
-      {/* arms */}
-      <mesh ref={leftArmRef} position={[-0.31, 0.78, 0]}>
-        <capsuleGeometry args={[0.075, 0.32, 4, 8]} />
-        <meshStandardMaterial color={config.topStyle === 'tshirt' ? skin : config.topColor} roughness={0.75} />
-      </mesh>
-      <mesh ref={rightArmRef} position={[0.31, 0.78, 0]}>
-        <capsuleGeometry args={[0.075, 0.32, 4, 8]} />
-        <meshStandardMaterial color={config.topStyle === 'tshirt' ? skin : config.topColor} roughness={0.75} />
-      </mesh>
-
-      {/* head */}
-      <mesh position={[0, 1.18, 0]}>
-        <sphereGeometry args={[0.22, 16, 14]} />
-        <meshStandardMaterial color={skin} roughness={0.8} />
-      </mesh>
-
-      {/* eyes */}
-      <mesh position={[-0.08, 1.2, 0.195]}>
-        <sphereGeometry args={[0.022, 6, 6]} />
-        <meshStandardMaterial color="#3a3245" />
-      </mesh>
-      <mesh position={[0.08, 1.2, 0.195]}>
-        <sphereGeometry args={[0.022, 6, 6]} />
-        <meshStandardMaterial color="#3a3245" />
-      </mesh>
-
-      <HairMesh config={config} />
-      <AccessoryMesh config={config} />
-
-      {config.accessory === 'backpack' ? (
-        <mesh position={[0, 0.75, -0.24]}>
-          <capsuleGeometry args={[0.14, 0.24, 4, 8]} />
-          <meshStandardMaterial color="#8a6a4f" roughness={0.85} />
+      {/* Everything above the hips shifts down together when seated, so the head/torso
+          settle onto the now-bent legs instead of floating at standing height. */}
+      <group position={[0, seated ? -0.28 : 0, 0]}>
+        {/* torso */}
+        <mesh position={[0, 0.73, 0]} castShadow>
+          <capsuleGeometry args={[0.235, 0.33, 4, 10]} />
+          <meshStandardMaterial color={config.topColor} roughness={0.75} />
         </mesh>
-      ) : null}
+
+        {/* arms */}
+        <mesh ref={leftArmRef} position={[-0.31, 0.78, 0]}>
+          <capsuleGeometry args={[0.075, 0.32, 4, 8]} />
+          <meshStandardMaterial color={config.topStyle === 'tshirt' ? skin : config.topColor} roughness={0.75} />
+        </mesh>
+        <mesh ref={rightArmRef} position={[0.31, 0.78, 0]}>
+          <capsuleGeometry args={[0.075, 0.32, 4, 8]} />
+          <meshStandardMaterial color={config.topStyle === 'tshirt' ? skin : config.topColor} roughness={0.75} />
+        </mesh>
+
+        {/* head */}
+        <mesh position={[0, 1.18, 0]}>
+          <sphereGeometry args={[0.22, 16, 14]} />
+          <meshStandardMaterial color={skin} roughness={0.8} />
+        </mesh>
+
+        {/* eyes */}
+        <mesh position={[-0.08, 1.2, 0.195]}>
+          <sphereGeometry args={[0.022, 6, 6]} />
+          <meshStandardMaterial color="#3a3245" />
+        </mesh>
+        <mesh position={[0.08, 1.2, 0.195]}>
+          <sphereGeometry args={[0.022, 6, 6]} />
+          <meshStandardMaterial color="#3a3245" />
+        </mesh>
+
+        <HairMesh config={config} />
+        <AccessoryMesh config={config} />
+
+        {config.accessory === 'backpack' ? (
+          <mesh position={[0, 0.75, -0.24]}>
+            <capsuleGeometry args={[0.14, 0.24, 4, 8]} />
+            <meshStandardMaterial color="#8a6a4f" roughness={0.85} />
+          </mesh>
+        ) : null}
+
+        {emote === 'heart' && emoteStartedAt != null ? <HeartPop startedAt={emoteStartedAt} /> : null}
+      </group>
     </group>
   )
 }
 
-function LegsMesh({ config, skin }: { config: GardenAvatarConfig; skin: string }) {
+/** A small "🤍" that floats up and fades — the one emote that needed a visual beyond arm/body rotation. Own useFrame so it animates independent of the parent's render cycle, same as every other emote pose here. */
+function HeartPop({ startedAt }: { startedAt: number }) {
+  const DURATION = 1.6
+  const groupRef = useRef<THREE.Group>(null)
+  const divRef = useRef<HTMLDivElement>(null)
+
+  useFrame(() => {
+    const progress = Math.min(Math.max(0, (Date.now() - startedAt) / 1000) / DURATION, 1)
+    if (groupRef.current) groupRef.current.position.y = 1.5 + progress * 0.6
+    if (divRef.current) divRef.current.style.opacity = String(1 - progress)
+  })
+
+  return (
+    <group ref={groupRef} position={[0, 1.5, 0]}>
+      <Html center distanceFactor={9} occlude={false}>
+        <div ref={divRef} className="pointer-events-none select-none text-2xl" aria-hidden>
+          🤍
+        </div>
+      </Html>
+    </group>
+  )
+}
+
+/** Approximate hip height — the pivot the whole leg swings from when seated (see below). */
+const HIP_Y = 0.42
+
+/**
+ * Garden V2: when `seated`, the legs swing forward from a hip-height pivot instead of
+ * hanging straight down — this rig has one rigid leg segment (no separate knee joint), so
+ * it's a single hinge rotation rather than a true bent-knee pose, but it reads as
+ * "sitting on the seat" well enough at this character's scale/style. When NOT seated the
+ * pivot group's own offset exactly cancels out (position.y = HIP_Y, each mesh's local y =
+ * original_y - HIP_Y), so the standing pose is pixel-identical to before this change.
+ */
+function LegsMesh({ config, skin, seated }: { config: GardenAvatarConfig; skin: string; seated: boolean }) {
   if (config.bottomStyle === 'skirt') {
+    // A rigid hinge rotation doesn't read as "bent" on a cone skirt — settle it a little
+    // lower when seated instead of attempting a bend.
     return (
-      <>
+      <group position={[0, seated ? -0.06 : 0, 0]}>
         <mesh position={[0, 0.32, 0]}>
           <coneGeometry args={[0.24, 0.34, 12]} />
           <meshStandardMaterial color={config.bottomColor} roughness={0.8} />
@@ -99,24 +202,24 @@ function LegsMesh({ config, skin }: { config: GardenAvatarConfig; skin: string }
           <cylinderGeometry args={[0.1, 0.11, 0.2, 8]} />
           <meshStandardMaterial color={skin} roughness={0.85} />
         </mesh>
-      </>
+      </group>
     )
   }
   const height = config.bottomStyle === 'shorts' ? 0.26 : 0.48
   const y = config.bottomStyle === 'shorts' ? 0.13 : 0.25
   return (
-    <>
-      <mesh position={[0, y, 0]}>
+    <group position={[0, HIP_Y, seated ? 0.04 : 0]} rotation={[seated ? -1.42 : 0, 0, 0]}>
+      <mesh position={[0, y - HIP_Y, 0]}>
         <cylinderGeometry args={[0.15, 0.17, height, 10]} />
         <meshStandardMaterial color={config.bottomColor} roughness={0.85} />
       </mesh>
       {config.bottomStyle === 'shorts' ? (
-        <mesh position={[0, 0.1, 0]}>
+        <mesh position={[0, 0.1 - HIP_Y, 0]}>
           <cylinderGeometry args={[0.1, 0.11, 0.24, 8]} />
           <meshStandardMaterial color={skin} roughness={0.85} />
         </mesh>
       ) : null}
-    </>
+    </group>
   )
 }
 

@@ -1,4 +1,5 @@
 import type { MoodId } from '../../types'
+import type { GardenEmoteId } from '../../data/gardenEmotes'
 
 export type GardenSkinTone = 'porcelain' | 'warm' | 'tan' | 'deep' | 'cocoa'
 export type GardenHairStyle = 'short' | 'medium' | 'tied' | 'wavy' | 'long'
@@ -31,6 +32,14 @@ export interface GardenMember {
   y: number
   z: number
   rotationY: number
+  /** Garden V2 — computed client-side by joining the presence roster against the live
+   * gardenSeats map (see useGardenPlayers.ts), never stored in gardenPresence itself.
+   * When set, RemoteGardenPlayer renders this member at the seat's own fixed anchor
+   * (SEATS_BY_ID) instead of their (frozen, stale) x/z. */
+  seatId?: string | null
+  /** Garden V2 — computed client-side by joining against the live gardenEmotes map, same reasoning as seatId. */
+  emote?: GardenEmoteId | null
+  emoteStartedAt?: number | null
 }
 
 export interface GardenChatMessage {

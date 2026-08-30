@@ -38,13 +38,13 @@
           ".validate": "!newData.exists() || newData.isString()"
         },
         "x": {
-          ".validate": "newData.isNumber() && newData.val() >= -12 && newData.val() <= 12"
+          ".validate": "newData.isNumber() && newData.val() >= -17 && newData.val() <= 17"
         },
         "y": {
           ".validate": "newData.isNumber() && newData.val() >= -2 && newData.val() <= 6"
         },
         "z": {
-          ".validate": "newData.isNumber() && newData.val() >= -12 && newData.val() <= 12"
+          ".validate": "newData.isNumber() && newData.val() >= -17 && newData.val() <= 17"
         },
         "rotationY": {
           ".validate": "newData.isNumber() && newData.val() >= -7 && newData.val() <= 7"
@@ -103,6 +103,47 @@
     },
 
     "gardenChatCooldown": {
+      "$publicId": {
+        ".read": "auth != null",
+        ".write": "auth != null && $publicId === root.child('uidToPublicId').child(auth.uid).val() && newData.val() === now"
+      }
+    },
+
+    "gardenSeats": {
+      ".read": "auth != null",
+      "$seatId": {
+        "publicId": {
+          ".validate": "newData.isString() && newData.val() === root.child('uidToPublicId').child(auth.uid).val()"
+        },
+        "claimedAt": {
+          ".validate": "newData.val() === now"
+        },
+        "$other": {
+          ".validate": false
+        },
+        ".validate": "newData.hasChildren(['publicId', 'claimedAt'])",
+        ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('publicId').val() === root.child('uidToPublicId').child(auth.uid).val()) || (data.exists() && !newData.exists() && data.child('publicId').val() === root.child('uidToPublicId').child(auth.uid).val()))"
+      }
+    },
+
+    "gardenEmotes": {
+      ".read": "auth != null",
+      "$publicId": {
+        "emote": {
+          ".validate": "newData.val() === 'wave' || newData.val() === 'clap' || newData.val() === 'dance_01' || newData.val() === 'dance_02' || newData.val() === 'spin' || newData.val() === 'raise_hands' || newData.val() === 'heart' || newData.val() === 'jump'"
+        },
+        "startedAt": {
+          ".validate": "newData.val() === now"
+        },
+        "$other": {
+          ".validate": false
+        },
+        ".validate": "newData.hasChildren(['emote', 'startedAt'])",
+        ".write": "auth != null && $publicId === root.child('uidToPublicId').child(auth.uid).val() && (!newData.exists() || !root.child('gardenEmoteCooldown').child($publicId).exists() || now > root.child('gardenEmoteCooldown').child($publicId).val() + 500)"
+      }
+    },
+
+    "gardenEmoteCooldown": {
       "$publicId": {
         ".read": "auth != null",
         ".write": "auth != null && $publicId === root.child('uidToPublicId').child(auth.uid).val() && newData.val() === now"
