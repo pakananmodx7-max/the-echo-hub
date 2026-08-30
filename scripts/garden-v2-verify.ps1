@@ -110,6 +110,54 @@ function Get-JavaMajorVersion {
   return $rawMajor
 }
 
+function Get-StartProcessTarget {
+  <#
+    Resolves a Node-ecosystem command (npm, npx, ...) to what Start-Process can actually
+    launch. This is ONLY needed for Start-Process - the plain unadorned command invocations
+    elsewhere in this script ("npm install", "npx playwright install chromium", "npm run
+    test:garden-rules") go through PowerShell's normal command-execution path, which already
+    applies Windows' PATHEXT resolution correctly and finds "npm.cmd"/"npx.cmd" on its own.
+
+    Start-Process is different: it calls CreateProcess more directly and does NOT apply that
+    same PATHEXT resolution. A standard Windows npm install ships THREE files per command -
+    e.g. "npm", "npm.cmd", "npm.ps1" - where the extensionless "npm" is a POSIX shell script
+    kept for Git Bash/WSL compatibility, not a native Windows binary. If Start-Process
+    resolves the bare name "npm" to that extensionless script, CreateProcess tries to load a
+    plain-text file as a PE executable and fails with "%1 is not a valid Win32 application."
+
+    Returns a hashtable with FilePath (the exact executable Start-Process should launch) and
+    ArgumentPrefix (extra leading arguments to splice in front of the real ones - empty
+    unless the cmd.exe /c fallback path below is used).
+  #>
+  param([Parameter(Mandatory)][string]$Command)
+
+  $onWindows = $IsWindows -or $env:OS -eq 'Windows_NT'
+  if (-not $onWindows) {
+    # Non-Windows PowerShell 7 host - a bare command is a normal executable/symlink, no
+    # shim resolution needed. (This script targets Windows; this branch only exists so the
+    # rest of the script's logic can still be exercised on a non-Windows dev/CI machine.)
+    $resolved = Get-Command $Command -ErrorAction SilentlyContinue
+    if (-not $resolved) {
+      throw "$Command not found on PATH."
+    }
+    return @{ FilePath = $resolved.Source; ArgumentPrefix = @() }
+  }
+
+  $cmdShim = Get-Command "$Command.cmd" -ErrorAction SilentlyContinue
+  if ($cmdShim) {
+    return @{ FilePath = $cmdShim.Source; ArgumentPrefix = @() }
+  }
+
+  # No ".cmd" shim found on this machine (unusual, but possible with some Node installers) -
+  # fall back to routing through cmd.exe, which applies the same PATHEXT resolution a
+  # normally typed command line would.
+  $cmdExe = Get-Command 'cmd.exe' -ErrorAction SilentlyContinue
+  if (-not $cmdExe) {
+    throw "Could not find $Command.cmd or cmd.exe to launch '$Command' - check your Node.js installation."
+  }
+  return @{ FilePath = $cmdExe.Source; ArgumentPrefix = @('/c', $Command) }
+}
+
 # --- 1. Prereqs -----------------------------------------------------------------------
 Write-Step "Checking prerequisites"
 
@@ -201,9 +249,11 @@ if (-not $SkipE2E) {
     Write-Step "Starting the full emulator suite (auth 9099, firestore 8080, database 9000)"
     $emulatorLog = Join-Path $RepoRoot '.garden-verify-emulators.log'
     $emulatorErrLog = Join-Path $RepoRoot '.garden-verify-emulators.err.log'
+    $npxTarget = Get-StartProcessTarget -Command 'npx'
+    $emulatorArgs = $npxTarget.ArgumentPrefix + @('firebase', 'emulators:start', '--only', 'auth,firestore,database', '--project', 'demo-garden-verify')
     $emulatorStartArgs = @{
-      FilePath               = 'npx'
-      ArgumentList           = @('firebase', 'emulators:start', '--only', 'auth,firestore,database', '--project', 'demo-garden-verify')
+      FilePath               = $npxTarget.FilePath
+      ArgumentList           = $emulatorArgs
       PassThru               = $true
       WindowStyle            = 'Hidden'
       RedirectStandardOutput = $emulatorLog
@@ -234,9 +284,11 @@ if (-not $SkipE2E) {
     Write-Step "Starting the Vite dev server (port 5173)"
     $devLog = Join-Path $RepoRoot '.garden-verify-devserver.log'
     $devErrLog = Join-Path $RepoRoot '.garden-verify-devserver.err.log'
+    $npmTarget = Get-StartProcessTarget -Command 'npm'
+    $devServerArgs = $npmTarget.ArgumentPrefix + @('run', 'dev')
     $devServerStartArgs = @{
-      FilePath               = 'npm'
-      ArgumentList           = @('run', 'dev')
+      FilePath               = $npmTarget.FilePath
+      ArgumentList           = $devServerArgs
       PassThru               = $true
       WindowStyle            = 'Hidden'
       RedirectStandardOutput = $devLog
