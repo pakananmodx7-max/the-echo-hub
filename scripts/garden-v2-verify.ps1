@@ -238,7 +238,14 @@ if (-not $SkipE2E) {
     'VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000',
     'VITE_FIREBASE_APP_ID=1:000000000000:web:0000000000000000000000',
     'VITE_FIREBASE_DATABASE_URL=http://127.0.0.1:9000/?ns=demo-garden-verify',
-    'VITE_USE_FIREBASE_EMULATORS=true'
+    'VITE_USE_FIREBASE_EMULATORS=true',
+    # Opt-in verbose console tracing for the emote write/subscribe/apply path (see
+    # gardenEmoteService.ts / useGardenPlayers.ts) - on by default for this verification
+    # script specifically so a future e2e failure's trace.zip/video already carries the
+    # [A emote write] / [remote player] applied diagnostic trail, instead of needing another
+    # round trip to add it after the fact. Logs publicId + emote id/timestamp only, never
+    # uid/email.
+    'VITE_GARDEN_DEBUG_EMOTES=true'
   )
   Set-Content -Path $envLocalPath -Value $envLines -Encoding utf8
   Write-Ok "wrote temporary .env.local pointed at the local emulators"

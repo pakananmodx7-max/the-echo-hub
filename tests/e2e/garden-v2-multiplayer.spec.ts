@@ -107,11 +107,33 @@ async function signUpAndEnterGarden(page: Page, label: 'A' | 'B'): Promise<strin
   return codename
 }
 
+/**
+ * Attaches a persistent console listener (registered once, up front, so no message can be
+ * missed by a listener that starts too late relative to when it fired) and returns a getter
+ * for every captured line matching `prefix` so far. Only ever used against this app's own
+ * `[A emote write]` / `[emote subscription]` / `[remote player]` debug lines (see
+ * gardenEmoteService.ts / useGardenPlayers.ts, gated behind VITE_GARDEN_DEBUG_EMOTES) — those
+ * log publicId + emote id/timestamp only, never uid/email.
+ */
+function captureConsole(page: Page, prefix: string) {
+  const lines: string[] = []
+  page.on('console', (msg) => {
+    const text = msg.text()
+    if (text.startsWith(prefix)) lines.push(text)
+  })
+  return () => lines
+}
+
 test('Garden V2 multiplayer — presence, world chat, emotes', async ({ browser }) => {
   const ctxA = await browser.newContext()
   const ctxB = await browser.newContext()
   const pageA = await ctxA.newPage()
   const pageB = await ctxB.newPage()
+
+  // Diagnostics for tracing the emote flow end-to-end: A's own write outcome, and what B's
+  // application state (useGardenPlayers' roster join, not just raw RTDB) actually applied.
+  const getAWriteLogs = captureConsole(pageA, '[A emote write]')
+  const getBAppliedLogs = captureConsole(pageB, '[remote player] applied')
 
   await test.step('items 1/2: two users enter simultaneously and see each other', async () => {
     const [codenameA, codenameB] = await Promise.all([
@@ -149,10 +171,23 @@ test('Garden V2 multiplayer — presence, world chat, emotes', async ({ browser 
   })
 
   let publicIdA = ''
-  await test.step('items 9/10: A performs an emote, RTDB reflects it (B\'s subscription source of truth)', async () => {
+  await test.step("items 9/10: A performs an emote (wave) — traced end-to-end: write succeeds, RTDB holds it, B's app state applies it", async () => {
     await pageA.getByRole('button', { name: 'ท่าทาง' }).click()
     await pageA.getByRole('button', { name: 'โบกมือ' }).click() // wave
 
+    // Step 1: A's write actually succeeded (not silently denied by the rules — e.g. a
+    // cooldown/shape/ownership mismatch would show up here as "denied", not a thrown error,
+    // since gardenEmoteService.setEmote() only .catch()es and logs, never rejects the caller).
+    // Matches on "success"+"emote=wave" together in one line, NOT a separate .find() by
+    // "emote=wave" alone — the pre-write attempt log also contains that substring, so a
+    // plain .find() picks that line instead of the actual success confirmation.
+    await expect
+      .poll(() => getAWriteLogs().some((l) => l.includes('success') && l.includes('emote=wave')), {
+        timeout: 10_000,
+      })
+      .toBe(true)
+
+    // Step 2: RTDB actually holds it (source of truth every client subscribes to).
     const db = getAdminDatabase(adminApp)
     await expect
       .poll(async () => {
@@ -163,16 +198,36 @@ test('Garden V2 multiplayer — presence, world chat, emotes', async ({ browser 
         return entry?.[1]?.emote ?? null
       }, { timeout: 10_000 })
       .toBe('wave')
+
+    // Step 3: B's own application state (useGardenPlayers' roster join, not a second raw
+    // RTDB read) actually applied it — this is the layer a UI/animation bug would show up
+    // in even if steps 1-2 above are both fine.
+    await expect
+      .poll(() => getBAppliedLogs().some((l) => l.includes(`id=${publicIdA}`) && l.includes('emote=wave')), {
+        timeout: 10_000,
+      })
+      .toBe(true)
   })
 
-  await test.step('items 11/12: A starts a looping dance, then moves — dance clears in RTDB', async () => {
+  await test.step('items 11/12: A starts a looping dance, then moves — shared dance state clears end-to-end', async () => {
     const db = getAdminDatabase(adminApp)
 
     await pageA.getByRole('button', { name: 'ท่าทาง' }).click()
     await pageA.getByRole('button', { name: 'เต้น 1' }).click() // dance_01 (loop: true)
+
+    await expect
+      .poll(() => getAWriteLogs().some((l) => l.includes('emote=dance_01') && l.includes('success')), {
+        timeout: 10_000,
+      })
+      .toBe(true)
     await expect
       .poll(async () => (await db.ref(`gardenEmotes/${publicIdA}`).get()).val()?.emote ?? null, { timeout: 10_000 })
       .toBe('dance_01')
+    await expect
+      .poll(() => getBAppliedLogs().some((l) => l.includes(`id=${publicIdA}`) && l.includes('emote=dance_01')), {
+        timeout: 10_000,
+      })
+      .toBe(true)
 
     // Trigger movement via a plain ground click well away from the avatar's screen
     // position — this only needs to register as *some* movement, not land on a specific
@@ -196,6 +251,13 @@ test('Garden V2 multiplayer — presence, world chat, emotes', async ({ browser 
     await expect
       .poll(async () => (await db.ref(`gardenEmotes/${publicIdA}`).get()).val(), { timeout: 10_000 })
       .toBeNull()
+    // B's app state converges to idle/walk (no active emote) for A once the clear lands.
+    await expect
+      .poll(() => {
+        const logs = getBAppliedLogs().filter((l) => l.includes(`id=${publicIdA}`))
+        return logs.at(-1)?.includes('emote=null') ?? false
+      }, { timeout: 10_000 })
+      .toBe(true)
   })
 
   await test.step('item 13: B cannot write A\'s emote/presence node from a forged direct call', async () => {

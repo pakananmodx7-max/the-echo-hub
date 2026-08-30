@@ -8,9 +8,4 @@ export default defineConfig({
   server: {
     host: true,
   },
-  test: {
-    // tests/ holds standalone verification scripts with their own runners (Playwright,
-    // plain node) — not vitest suites, so vitest's default glob must skip them.
-    exclude: ['**/node_modules/**', 'tests/**'],
-  },
 })

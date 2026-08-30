@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { gardenPresenceService } from '../features/garden/gardenPresenceService'
 import { firebaseConfigured } from '../lib/firebase'
 import { useAuth } from './useAuth'
 import { useGardenSeats } from './useGardenSeats'
 import { useGardenEmotes } from './useGardenEmotes'
 import type { GardenMember } from '../features/garden/types'
+
+// See gardenEmoteService.ts for the same opt-in flag and PII note — publicId only, never
+// uid/email.
+const DEBUG_EMOTES = import.meta.env.VITE_GARDEN_DEBUG_EMOTES === 'true'
 
 /**
  * Live roster of other real people currently inside ECHO GARDEN — never includes the
@@ -47,6 +51,23 @@ export function useGardenPlayers(): GardenMember[] {
       }),
     [rawMembers, seatByPublicId, emoteStates],
   )
+
+  // Diagnostic-only, and deliberately a separate effect rather than logging inline in the
+  // useMemo above: mutating a ref during render is against React's rules (a render pass can
+  // be discarded/re-run without committing, which would desync the "last logged" tracker) -
+  // this only runs after each commit, tracking the last emote id actually logged per remote
+  // publicId so the trace fires once per real change, not on every unrelated roster
+  // re-render (e.g. someone else's position tick).
+  const lastLoggedEmoteRef = useRef<Record<string, string | null>>({})
+  useEffect(() => {
+    if (!DEBUG_EMOTES) return
+    for (const m of members) {
+      if (lastLoggedEmoteRef.current[m.id] !== m.emote) {
+        lastLoggedEmoteRef.current[m.id] = m.emote
+        console.debug(`[remote player] applied id=${m.id} emote=${m.emote}`)
+      }
+    }
+  }, [members])
 
   return members
 }

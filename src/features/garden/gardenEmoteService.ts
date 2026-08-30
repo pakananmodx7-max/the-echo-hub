@@ -20,23 +20,46 @@ export interface GardenEmoteService {
   clearEmote(myPublicId: string): void
 }
 
+// Opt-in verbose tracing for the emote write/subscribe path — never on by default (this is
+// a hot path: every subscribeEmotes callback fires on every emote change from every client).
+// Set VITE_GARDEN_DEBUG_EMOTES=true (e.g. in .env.local) to enable while diagnosing a sync
+// issue. Only ever logs publicId (the app's own pseudonymous multiplayer handle, already
+// shown in the UI as part of presence/codenames) and emote ids/timestamps — never uid/email.
+const DEBUG_EMOTES = import.meta.env.VITE_GARDEN_DEBUG_EMOTES === 'true'
+
 class FirebaseGardenEmoteService implements GardenEmoteService {
   subscribeEmotes(callback: (states: Record<string, GardenEmoteState>) => void): () => void {
     const emotesRef = ref(getFirebaseDatabase(), 'gardenEmotes')
     return onValue(
       emotesRef,
-      (snap) => callback((snap.val() ?? {}) as Record<string, GardenEmoteState>),
+      (snap) => {
+        const states = (snap.val() ?? {}) as Record<string, GardenEmoteState>
+        if (DEBUG_EMOTES) {
+          for (const [publicId, state] of Object.entries(states)) {
+            console.debug(`[emote subscription] received id=${publicId} emote=${state.emote} startedAt=${state.startedAt}`)
+          }
+        }
+        callback(states)
+      },
       (err) => console.error('[garden] subscribeEmotes failed', err),
     )
   }
 
   setEmote(myPublicId: string, emote: GardenEmoteId): void {
     const db = getFirebaseDatabase()
+    const path = `gardenEmotes/${myPublicId}`
+    if (DEBUG_EMOTES) console.debug(`[A emote write] path=${path} emote=${emote}`)
     // A plain (non-merge) set: the doc only ever holds these two fields, matching
     // database.rules.json's hasChildren(['emote','startedAt']) exactly.
-    set(ref(db, `gardenEmotes/${myPublicId}`), { emote, startedAt: serverTimestamp() }).catch((err) =>
-      console.error('[garden] setEmote failed', { emote, message: err instanceof Error ? err.message : String(err) }),
-    )
+    set(ref(db, path), { emote, startedAt: serverTimestamp() })
+      .then(() => {
+        if (DEBUG_EMOTES) console.debug(`[A emote write] success path=${path} emote=${emote}`)
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : String(err)
+        if (DEBUG_EMOTES) console.debug(`[A emote write] denied path=${path} emote=${emote} reason=${message}`)
+        console.error('[garden] setEmote failed', { emote, message })
+      })
     // Best-effort cooldown marker (mirrors gardenChatCooldown) — the rule itself is the
     // real enforcement; a failed write here just means the next rapid tap gets rejected
     // by the rule's ownership/shape check instead of the cooldown check, still safe.
@@ -44,9 +67,16 @@ class FirebaseGardenEmoteService implements GardenEmoteService {
   }
 
   clearEmote(myPublicId: string): void {
-    remove(ref(getFirebaseDatabase(), `gardenEmotes/${myPublicId}`)).catch((err) =>
-      console.error('[garden] clearEmote failed', err),
-    )
+    const path = `gardenEmotes/${myPublicId}`
+    if (DEBUG_EMOTES) console.debug(`[A emote write] path=${path} emote=null (clear)`)
+    remove(ref(getFirebaseDatabase(), path))
+      .then(() => {
+        if (DEBUG_EMOTES) console.debug(`[A emote write] success path=${path} emote=null (clear)`)
+      })
+      .catch((err) => {
+        if (DEBUG_EMOTES) console.debug(`[A emote write] denied path=${path} emote=null (clear) reason=${err instanceof Error ? err.message : String(err)}`)
+        console.error('[garden] clearEmote failed', err)
+      })
   }
 }
 

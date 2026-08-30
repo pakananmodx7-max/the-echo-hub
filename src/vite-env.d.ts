@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_APP_ID: string
   readonly VITE_FIREBASE_DATABASE_URL: string
   readonly VITE_USE_FIREBASE_EMULATORS: string
+  /** Opt-in verbose console tracing for the Garden V2 emote write/subscribe/apply path — see gardenEmoteService.ts. Unset/omitted in normal dev and production. */
+  readonly VITE_GARDEN_DEBUG_EMOTES?: string
 }
 
 interface ImportMeta {
