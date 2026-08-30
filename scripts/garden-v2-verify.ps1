@@ -44,6 +44,18 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $RepoRoot
 
+# Single source of truth for the demo Firebase project id used throughout this script (the
+# .env.local it writes, the emulator's --project flag, and the env vars it hands to the e2e
+# Playwright run below). Previously this literal was duplicated across several places, and
+# tests/e2e/garden-v2-multiplayer.spec.ts's Admin SDK connection had its OWN separate,
+# out-of-sync default ('echo-hub-e2e-verify') that this script never overrode - the browser
+# wrote emote/presence data into 'demo-garden-verify' while the test's Admin SDK read from
+# the empty 'echo-hub-e2e-verify' namespace, so an RTDB-backed assertion (item 9/10, "A
+# performs an emote") could never see it and failed deterministically on every run. Keeping
+# this as one variable, threaded through explicitly below, is what prevents that class of
+# bug from coming back silently.
+$FirebaseProjectId = 'demo-garden-verify'
+
 function Write-Step {
   param([string]$Message)
   Write-Host ""
@@ -230,14 +242,16 @@ if (-not $SkipE2E) {
     Write-Ok "backed up existing .env.local -> .env.local.garden-verify-backup"
   }
 
+  $databaseUrl = "http://127.0.0.1:9000/?ns=$FirebaseProjectId"
+
   $envLines = @(
-    'VITE_FIREBASE_API_KEY=demo-garden-verify-key',
-    'VITE_FIREBASE_AUTH_DOMAIN=demo-garden-verify.firebaseapp.com',
-    'VITE_FIREBASE_PROJECT_ID=demo-garden-verify',
-    'VITE_FIREBASE_STORAGE_BUCKET=demo-garden-verify.appspot.com',
+    "VITE_FIREBASE_API_KEY=$FirebaseProjectId-key",
+    "VITE_FIREBASE_AUTH_DOMAIN=$FirebaseProjectId.firebaseapp.com",
+    "VITE_FIREBASE_PROJECT_ID=$FirebaseProjectId",
+    "VITE_FIREBASE_STORAGE_BUCKET=$FirebaseProjectId.appspot.com",
     'VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000',
     'VITE_FIREBASE_APP_ID=1:000000000000:web:0000000000000000000000',
-    'VITE_FIREBASE_DATABASE_URL=http://127.0.0.1:9000/?ns=demo-garden-verify',
+    "VITE_FIREBASE_DATABASE_URL=$databaseUrl",
     'VITE_USE_FIREBASE_EMULATORS=true',
     # Opt-in verbose console tracing for the emote write/subscribe/apply path (see
     # gardenEmoteService.ts / useGardenPlayers.ts) - on by default for this verification
@@ -250,6 +264,13 @@ if (-not $SkipE2E) {
   Set-Content -Path $envLocalPath -Value $envLines -Encoding utf8
   Write-Ok "wrote temporary .env.local pointed at the local emulators"
 
+  # Handed to the e2e Playwright run below (GARDEN_TEST_DB_URL) so its Admin SDK connects to
+  # the SAME project id / RTDB namespace the browser's own Firebase app just got configured
+  # with above - see the GARDEN_FIREBASE_PROJECT_ID comment in
+  # tests/e2e/garden-v2-multiplayer.spec.ts for what happens when these drift apart.
+  $env:GARDEN_TEST_DB_URL = $databaseUrl
+  $env:GARDEN_TEST_BASE_URL = 'http://127.0.0.1:5173'
+
   $emulatorProc = $null
   $devServerProc = $null
   try {
@@ -257,7 +278,7 @@ if (-not $SkipE2E) {
     $emulatorLog = Join-Path $RepoRoot '.garden-verify-emulators.log'
     $emulatorErrLog = Join-Path $RepoRoot '.garden-verify-emulators.err.log'
     $npxTarget = Get-StartProcessTarget -Command 'npx'
-    $emulatorArgs = $npxTarget.ArgumentPrefix + @('firebase', 'emulators:start', '--only', 'auth,firestore,database', '--project', 'demo-garden-verify')
+    $emulatorArgs = $npxTarget.ArgumentPrefix + @('firebase', 'emulators:start', '--only', 'auth,firestore,database', '--project', $FirebaseProjectId)
     $emulatorStartArgs = @{
       FilePath               = $npxTarget.FilePath
       ArgumentList           = $emulatorArgs
@@ -274,7 +295,7 @@ if (-not $SkipE2E) {
     for ($i = 0; $i -lt 45; $i++) {
       Start-Sleep -Seconds 2
       try {
-        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:9000/.json?ns=demo-garden-verify" -UseBasicParsing -TimeoutSec 2
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:9000/.json?ns=$FirebaseProjectId" -UseBasicParsing -TimeoutSec 2
         if ($resp.StatusCode -eq 200) {
           $ready = $true
           break

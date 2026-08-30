@@ -28,15 +28,32 @@ import { test, expect, type Page, type Locator } from '@playwright/test'
 import { initializeApp, deleteApp, type App } from 'firebase-admin/app'
 import { getDatabase as getAdminDatabase } from 'firebase-admin/database'
 
+// This MUST be the same project id the browser's own Firebase app uses (VITE_FIREBASE_PROJECT_ID
+// in the .env.local scripts/garden-v2-verify.ps1 generates — see its $firebaseProjectId).
+// firebase/database's connectDatabaseEmulator() (used by the browser app, src/lib/firebase.ts)
+// ignores the databaseURL's "?ns=" query param entirely and derives the emulator namespace
+// straight from the Firebase app's projectId — so if this Admin SDK app used a DIFFERENT
+// projectId/namespace, every RTDB read here would silently hit an empty, unrelated namespace
+// while the browser's writes landed in the real one. That mismatch is exactly what caused a
+// deterministic (not flaky) "Expected: wave, Received: null" failure here: this constant used
+// to default to 'echo-hub-e2e-verify', a namespace the browser never wrote to, whenever the
+// caller (scripts/garden-v2-verify.ps1) didn't override it via GARDEN_TEST_DB_URL — which it
+// never did. Confirmed by reproducing the exact failure with that mismatch restored, then
+// fixing it here.
+const GARDEN_FIREBASE_PROJECT_ID = 'demo-garden-verify'
+
 const BASE_URL = process.env.GARDEN_TEST_BASE_URL ?? 'http://127.0.0.1:5173'
-const DB_URL = process.env.GARDEN_TEST_DB_URL ?? 'http://127.0.0.1:9000/?ns=echo-hub-e2e-verify'
+const DB_URL = process.env.GARDEN_TEST_DB_URL ?? `http://127.0.0.1:9000/?ns=${GARDEN_FIREBASE_PROJECT_ID}`
 const RUN_ID = Date.now().toString(36)
 
 let adminApp: App
 
 test.beforeAll(() => {
   process.env.FIREBASE_DATABASE_EMULATOR_HOST = '127.0.0.1:9000'
-  adminApp = initializeApp({ projectId: 'echo-hub-e2e-verify', databaseURL: DB_URL }, `garden-verify-${RUN_ID}`)
+  adminApp = initializeApp(
+    { projectId: GARDEN_FIREBASE_PROJECT_ID, databaseURL: DB_URL },
+    `garden-verify-${RUN_ID}`,
+  )
 })
 
 test.afterAll(async () => {
