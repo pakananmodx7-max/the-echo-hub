@@ -69,7 +69,12 @@ async function signUpAndEnterGarden(page: Page, label: 'A' | 'B'): Promise<strin
   await page.getByRole('button', { name: 'วันนี้ดีนะ' }).click()
   await page.getByRole('button', { name: 'เข้าสู่ THE ECHO →' }).click()
 
-  await page.waitForURL(/\/hub($|\/)/, { timeout: 15_000 })
+  // Two accounts sign up concurrently (Promise.all in the caller) against the same
+  // Auth+Firestore emulator, and this redirect only fires after the onboarding-completion
+  // write resolves — under real contention (a slower machine, a cold first run) that can
+  // take noticeably longer than on a fast, already-warmed-up dev machine, so this gets a
+  // generous window rather than a tight one.
+  await page.waitForURL(/\/hub($|\/)/, { timeout: 45_000 })
 
   // isVisible() does NOT poll/wait — it's an instant snapshot check — so every optional-UI
   // probe below uses waitFor() (which does poll) inside a try/catch instead.
@@ -85,15 +90,18 @@ async function signUpAndEnterGarden(page: Page, label: 'A' | 'B'): Promise<strin
 
   // HubLayout shows a global once-a-day DailyCheckinModal on top of whatever route is
   // underneath — dismiss it via its "later" action so it doesn't block what follows.
-  const dismissDailyCheckin = () => clickIfPresent(page.getByRole('button', { name: 'ไว้ทีหลัง' }), 4_000)
+  const dismissDailyCheckin = () => clickIfPresent(page.getByRole('button', { name: 'ไว้ทีหลัง' }), 8_000)
   await dismissDailyCheckin()
 
   await page.goto(`${BASE_URL}/#/hub/garden`)
   await dismissDailyCheckin() // the goto is a full reload, so HubLayout (and the modal) remounts
 
   // A brand-new account's first-ever Garden visit shows an inline avatar-setup screen
-  // ("🌿 เตรียมตัวเข้าสวน") before the 3D scene loads — defaults are fine, just confirm.
-  await clickIfPresent(page.getByRole('button', { name: /พร้อมแล้ว.*เข้าสวน/ }), 10_000)
+  // ("🌿 เตรียมตัวเข้าสวน") before the 3D scene loads - defaults are fine, just confirm. This
+  // is the first point the R3F/WebGL avatar preview has to actually compile shaders and
+  // paint, which can be considerably slower than steady-state rendering on a machine with a
+  // cold GPU driver / software-rendering fallback, so it gets real headroom.
+  await clickIfPresent(page.getByRole('button', { name: /พร้อมแล้ว.*เข้าสวน/ }), 25_000)
 
   await expect(page.getByText(/มี\s*\d+\s*คนอยู่ในสวน/)).toBeVisible({ timeout: 30_000 })
   return codename
@@ -118,11 +126,15 @@ test('Garden V2 multiplayer — presence, world chat, emotes', async ({ browser 
     // Each sees the other's codename in the Online panel (GardenHUD's "Online" nav button
     // — icon span is aria-hidden, so the accessible name is exactly "Online"). .first() is
     // needed since the same codename also appears as a floating 3D nametag on the canvas.
+    // Explicit timeout (this reflects an RTDB round-trip + a panel-open animation, not just
+    // a DOM update) — left at Playwright's 5s default here before, which is the tightest
+    // window of any assertion in this whole spec and the most likely one to flake first
+    // under real-world latency.
     await pageA.getByRole('button', { name: 'Online' }).click()
-    await expect(pageA.getByText(codenameB).first()).toBeVisible()
+    await expect(pageA.getByText(codenameB).first()).toBeVisible({ timeout: 15_000 })
     await pageA.getByRole('button', { name: 'ปิด ✕' }).click() // full-screen Online panel — must close before anything else is clickable
     await pageB.getByRole('button', { name: 'Online' }).click()
-    await expect(pageB.getByText(codenameA).first()).toBeVisible()
+    await expect(pageB.getByText(codenameA).first()).toBeVisible({ timeout: 15_000 })
     await pageB.getByRole('button', { name: 'ปิด ✕' }).click()
   })
 
@@ -166,10 +178,20 @@ test('Garden V2 multiplayer — presence, world chat, emotes', async ({ browser 
     // position — this only needs to register as *some* movement, not land on a specific
     // world coordinate, so it doesn't depend on the randomized spawn point.
     const canvas = pageA.locator('canvas').first()
+    await canvas.waitFor({ state: 'visible', timeout: 15_000 })
     const box = await canvas.boundingBox()
-    if (box) {
-      await pageA.mouse.click(box.x + box.width * 0.75, box.y + box.height * 0.6)
+    if (!box) {
+      // No layout box for a canvas that IS in the DOM almost always means the WebGL 3D
+      // scene never painted (e.g. this app's own 2D fallback path is active because WebGL
+      // isn't available on this machine/browser) - fail loudly and specifically here rather
+      // than silently skipping the click and letting the assertion below time out with a
+      // confusing "expected null, got dance_01" that looks like a sync bug but isn't one.
+      throw new Error(
+        'Garden canvas has no layout box - the 3D scene likely never rendered (WebGL unavailable / 2D fallback active). ' +
+          'This is an environment issue, not a Garden V2 emote-sync bug: re-run with a browser/machine that supports WebGL.',
+      )
     }
+    await pageA.mouse.click(box.x + box.width * 0.75, box.y + box.height * 0.6)
 
     await expect
       .poll(async () => (await db.ref(`gardenEmotes/${publicIdA}`).get()).val(), { timeout: 10_000 })
