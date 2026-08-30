@@ -9,6 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:garden-rules": "firebase emulators:exec --only database \"node tests/rtdb-rules/garden-v2.rules.test.mjs\"",
+    "test:garden-e2e": "playwright test --config=playwright.garden.config.ts",
     "export:stats": "tsx scripts/exportStatsToSheets.ts"
   },
   "dependencies": {
@@ -23,12 +25,15 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@playwright/test": "^1.49.1",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^6.1.0",
     "firebase-admin": "^14.3.0",
+    "firebase-tools": "^13.29.1",
     "oxlint": "^1.79.0",
     "tsx": "^4.23.12",
     "typescript": "~6.0.2",
