@@ -60,6 +60,56 @@ function Write-Warn {
   Write-Host "    WARN: $Message" -ForegroundColor Yellow
 }
 
+function Get-JavaVersionInfo {
+  <#
+    Runs "java -version" via System.Diagnostics.Process instead of PowerShell's own native-
+    command pipeline. Java has always written -version output to stderr, and PowerShell (5.1
+    especially, with $ErrorActionPreference = 'Stop' in effect, which this script sets) turns
+    a native command's "2>&1" stderr merge into terminating NativeCommandError objects - so a
+    perfectly healthy JVM would abort the whole script. Process.Start's redirected streams are
+    plain .NET strings; they never enter PowerShell's error stream at all, so EAP is a non-issue.
+  #>
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = 'java'
+  $psi.Arguments = '-version'
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+
+  $proc = New-Object System.Diagnostics.Process
+  $proc.StartInfo = $psi
+  [void]$proc.Start()
+  $stdout = $proc.StandardOutput.ReadToEnd()
+  $stderr = $proc.StandardError.ReadToEnd()
+  $proc.WaitForExit()
+
+  # Java has printed "-version" text to stderr since Java 1.0; some newer builds also echo it
+  # to stdout. Combine both so parsing works regardless of which stream a given JDK used -
+  # this call never treats stderr text by itself as a failure, only a nonzero exit code with
+  # no usable output at all counts as one (checked by the caller).
+  return [PSCustomObject]@{
+    ExitCode = $proc.ExitCode
+    Combined = ($stdout + [Environment]::NewLine + $stderr)
+  }
+}
+
+function Get-JavaMajorVersion {
+  param([string]$VersionLine)
+  # Handles both the old scheme ("1.8.0_402" = Java 8) and the modern one ("21.0.12.1" =
+  # Java 21, "17.0.9" = Java 17) - matches the first quoted version string's leading
+  # dot-separated numbers.
+  $versionMatch = [regex]::Match($VersionLine, '"(\d+)(\.(\d+))?')
+  if (-not $versionMatch.Success) {
+    return $null
+  }
+  $rawMajor = [int]$versionMatch.Groups[1].Value
+  if ($rawMajor -eq 1 -and $versionMatch.Groups[3].Success) {
+    return [int]$versionMatch.Groups[3].Value
+  }
+  return $rawMajor
+}
+
 # --- 1. Prereqs -----------------------------------------------------------------------
 Write-Step "Checking prerequisites"
 
@@ -74,8 +124,26 @@ $java = Get-Command java -ErrorAction SilentlyContinue
 if (-not $java) {
   throw "Java not found on PATH. The Firestore/Database emulators need a JRE (Java 11+). Install Temurin/OpenJDK, e.g. 'winget install EclipseAdoptium.Temurin.21.JRE', then re-run."
 }
-$javaVersionLine = (& java -version 2>&1 | Select-Object -First 1)
-Write-Ok "java found: $javaVersionLine"
+
+$javaInfo = Get-JavaVersionInfo
+if ([string]::IsNullOrWhiteSpace($javaInfo.Combined)) {
+  throw "Java was found on PATH but 'java -version' produced no output (exit code $($javaInfo.ExitCode)). Re-install Java 11+ and re-run."
+}
+
+$javaVersionLine = ($javaInfo.Combined -split "`r?`n" | Where-Object { $_ -match 'version' } | Select-Object -First 1)
+if (-not $javaVersionLine) {
+  throw "Could not find a 'version' line in java -version output. Raw output: $($javaInfo.Combined)"
+}
+
+$javaMajor = Get-JavaMajorVersion -VersionLine $javaVersionLine
+if ($null -eq $javaMajor) {
+  throw "Could not parse a Java major version from: $javaVersionLine"
+}
+if ($javaMajor -lt 11) {
+  throw "Java $javaMajor detected ($javaVersionLine) - the Firestore/Database emulators need Java 11+. Install a newer JRE/JDK, e.g. 'winget install EclipseAdoptium.Temurin.21.JRE', then re-run."
+}
+
+Write-Ok "java $javaVersionLine (major version $javaMajor)"
 
 # --- 2. Install deps --------------------------------------------------------------------
 Write-Step "npm install (pulls in rules-unit-testing / playwright / firebase-tools)"
