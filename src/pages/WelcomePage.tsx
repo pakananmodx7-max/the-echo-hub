@@ -3,6 +3,7 @@ import { Button } from '../components/Button'
 import { AnimatedEchoBackground } from '../components/AnimatedEchoBackground'
 import { useAuth } from '../hooks/useAuth'
 import { useEffect } from 'react'
+import schoolEmblem from '../assets/school-emblem.png'
 
 export function WelcomePage() {
   const navigate = useNavigate()
@@ -20,9 +21,11 @@ export function WelcomePage() {
       <AnimatedEchoBackground />
 
       <div className="ewbg-content-in relative z-10 flex flex-1 flex-col items-center justify-center gap-6">
-        <div className="text-6xl" aria-hidden>
-          🏫
-        </div>
+        <img
+          src={schoolEmblem}
+          alt="ตราโรงเรียนสักงามวิทยา"
+          className="school-emblem h-16 w-auto object-contain sm:h-20 md:h-24 lg:h-[110px]"
+        />
         <div>
           <p className="text-sm font-medium tracking-wide text-ink-soft">โรงเรียนสักงามวิทยา</p>
           <h1 className="mt-1 text-4xl font-extrabold tracking-tight text-ink">THE ECHO</h1>

@@ -282,6 +282,20 @@ h1, h2, h3 {
   opacity: 0.05;
 }
 
+/* Official school emblem (src/assets/school-emblem.png) — used wherever the app's own
+   generic 🏫 stand-in used to be. object-fit: contain (plus intrinsic width:auto) keeps the
+   emblem's real aspect ratio with no cropping or stretching, and its own PNG transparency
+   is never covered by a background box. A drop-shadow is the only per-theme treatment: a
+   soft dark shadow for gentle depth on the light background, and a soft light glow instead
+   in dark mode so the emblem's white ribbon/ray highlights don't flatten into the dark navy
+   background behind them — the emblem's own colors are never recolored. */
+.school-emblem {
+  filter: drop-shadow(0 2px 6px rgba(58, 50, 69, 0.18));
+}
+:root[data-theme='dark'] .school-emblem {
+  filter: drop-shadow(0 0 10px rgba(243, 236, 255, 0.22));
+}
+
 /* ---------------------------------------------------------------------------
    Login page background only — a calm animated evening-garden scene (see
    LoginGardenBackground.tsx). Scoped entirely under .echo-login-bg so it can
