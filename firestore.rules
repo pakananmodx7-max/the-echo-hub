@@ -125,7 +125,8 @@ service cloud.firestore {
       return isSingleFieldDelta(keys, 'sayItToday', 1) ||
         isSingleFieldDelta(keys, 'hearSomeone', 1) || isSingleFieldDelta(keys, 'friendBond', 1) ||
         isSingleFieldDelta(keys, 'whoAmI', 1) || isSingleFieldDelta(keys, 'echoJournal', 1) ||
-        isSingleFieldDelta(keys, 'drawListen', 1) || isSingleFieldDelta(keys, 'garden', 1);
+        isSingleFieldDelta(keys, 'drawListen', 1) || isSingleFieldDelta(keys, 'garden', 1) ||
+        isSingleFieldDelta(keys, 'dailyJournalCompleted', 1);
     }
 
     // Private per-user document (codename, avatarId, mood, onboarding state, completed
@@ -197,16 +198,63 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == uid;
         allow create: if request.auth != null && request.auth.uid == uid
           && request.resource.data.type in
-            ['checkin', 'garden', 'journal', 'friendbond', 'kindword', 'hearwithheart']
+            ['checkin', 'garden', 'journal', 'friendbond', 'kindword', 'hearwithheart', 'daily_journal']
           && request.resource.data.date is string
           && rewardId == request.resource.data.type + '_' + request.resource.data.date
           && (
             (request.resource.data.type in ['journal', 'friendbond', 'hearwithheart']
               && request.resource.data.points == 10)
-            || (request.resource.data.type in ['checkin', 'garden', 'kindword']
+            || (request.resource.data.type in ['checkin', 'garden', 'kindword', 'daily_journal']
               && request.resource.data.points == 5)
           );
         allow update, delete: if false;
+      }
+
+      // One private text entry per Bangkok calendar day — Daily Journal. Document id IS the
+      // date (YYYY-MM-DD), so "one entry per day, never a duplicate" is structurally
+      // guaranteed the same way the rewards ledger above guarantees "never a duplicate
+      // reward": there is only ever one document Firestore will let this write land on for
+      // a given day. Owner-only (never publicId-based — this is explicitly private, never
+      // shared with friends/Garden/chat/public profiles). `stickers` is checked against the
+      // exact curated set in src/data/journalStickers.ts (JOURNAL_STICKERS) — keep both in
+      // sync if that list ever changes. `updatedAt` must always equal the server's own
+      // request time (never client-supplied), and `createdAt` may only be set once (on the
+      // create write) and must never change on any later update — mirrors the anti-forgery
+      // pattern already used by chatRooms/readState's lastReadAt above.
+      match /dailyJournal/{date} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+
+        allow create: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['date', 'content', 'mood', 'theme', 'stickers', 'createdAt', 'updatedAt'])
+          && request.resource.data.date == date
+          && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.content is string
+          && request.resource.data.content.size() <= 20000
+          && (request.resource.data.mood == null
+              || request.resource.data.mood in ['good', 'okay', 'need-ear', 'tired', 'ready-to-listen'])
+          && request.resource.data.theme in ['cream', 'lavender', 'pink', 'blue', 'green', 'dark']
+          && request.resource.data.stickers is list
+          && request.resource.data.stickers.size() <= 6
+          && request.resource.data.stickers.hasOnly(['🤍', '🌷', '⭐', '🌙', '☁️', '🌿', '🦋', '✨', '🫶', '🎧', '📚', '☕', '🌧️', '🌈'])
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['date', 'content', 'mood', 'theme', 'stickers', 'createdAt', 'updatedAt'])
+          && request.resource.data.date == date
+          && request.resource.data.content is string
+          && request.resource.data.content.size() <= 20000
+          && (request.resource.data.mood == null
+              || request.resource.data.mood in ['good', 'okay', 'need-ear', 'tired', 'ready-to-listen'])
+          && request.resource.data.theme in ['cream', 'lavender', 'pink', 'blue', 'green', 'dark']
+          && request.resource.data.stickers is list
+          && request.resource.data.stickers.size() <= 6
+          && request.resource.data.stickers.hasOnly(['🤍', '🌷', '⭐', '🌙', '☁️', '🌿', '🦋', '✨', '🫶', '🎧', '📚', '☕', '🌧️', '🌈'])
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time;
+
+        // Preserves history, matching dailyProgress/rewards above — never deleted.
+        allow delete: if false;
       }
     }
 

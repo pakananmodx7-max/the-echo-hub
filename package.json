@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:garden-rules": "firebase emulators:exec --only database \"node tests/rtdb-rules/garden-v2.rules.test.mjs\"",
+    "test:journal-rules": "firebase emulators:exec --only firestore \"node tests/firestore-rules/daily-journal.rules.test.mjs\"",
     "test:garden-e2e": "playwright test --config=playwright.garden.config.ts",
     "export:stats": "tsx scripts/exportStatsToSheets.ts"
   },

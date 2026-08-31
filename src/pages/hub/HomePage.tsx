@@ -17,7 +17,7 @@ import type { MoodId } from '../../types'
 /** Mirrors the ids in ActivitiesPage.tsx's ACTIVITIES list — kept as its own small constant
  * here rather than importing the page module just for this, since ActivitiesPage.tsx is a
  * separate lazy-loaded route chunk (see App.tsx). */
-const CURRENT_ACTIVITY_IDS = ['say-it-today', 'hear-someone', 'someone-to-talk-to', 'friend-bond']
+const CURRENT_ACTIVITY_IDS = ['say-it-today', 'hear-someone', 'someone-to-talk-to', 'friend-bond', 'daily-journal']
 
 export function HomePage() {
   const { user, setMood } = useAuth()
@@ -42,8 +42,10 @@ export function HomePage() {
   const previewAvatars = ONLINE_USERS.slice(0, 5)
   // Filtered against the current HEAR WITH HEART activity ids (see ActivitiesPage.tsx) so an
   // account that completed the now-removed Send a Song activity before it existed doesn't
-  // show an impossible "5 / 4" here — that historical completion id is preserved as-is in
-  // Firestore, just no longer counted toward this progress display.
+  // show an impossible count here — that historical completion id is preserved as-is in
+  // Firestore, just no longer counted toward this progress display. Daily Journal's own
+  // completion badge uses this same lifetime completedActivityIds flag, set once on its
+  // first-ever meaningful save (see DailyJournalPage.tsx) — not the daily reward ledger.
   const completedCount = user.completedActivityIds.filter((id) => CURRENT_ACTIVITY_IDS.includes(id)).length
 
   async function handleConfirmMood() {
@@ -134,7 +136,7 @@ export function HomePage() {
         <Card className="bg-gradient-to-br from-pink-glow/40 to-white">
           <p className="text-lg font-semibold text-ink">🤍 HEAR WITH HEART</p>
           <p className="mt-1 text-sm text-ink-soft">ฟัง เข้าใจ และส่งต่อสิ่งดี ๆ</p>
-          <p className="mt-3 text-sm font-medium text-pink-text">4 กิจกรรม</p>
+          <p className="mt-3 text-sm font-medium text-pink-text">5 กิจกรรม</p>
           <Link to="/hub/activities">
             <Button fullWidth variant="soft-pink" className="mt-4">
               ดูกิจกรรม →
@@ -179,12 +181,12 @@ export function HomePage() {
           <div className="mt-4">
             <div className="flex items-center justify-between text-sm text-ink-soft">
               <span>ความคืบหน้ากิจกรรม</span>
-              <span className="font-semibold text-ink">{completedCount} / 4 activities completed</span>
+              <span className="font-semibold text-ink">{completedCount} / 5 activities completed</span>
             </div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-lavender-100">
               <div
                 className="h-full rounded-full bg-lavender-500 transition-all"
-                style={{ width: `${Math.min((completedCount / 4) * 100, 100)}%` }}
+                style={{ width: `${Math.min((completedCount / 5) * 100, 100)}%` }}
               />
             </div>
           </div>

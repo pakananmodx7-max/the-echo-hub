@@ -51,6 +51,15 @@ const ACTIVITIES: ActivityDef[] = [
     to: '/hub/friends',
     accent: 'mint',
   },
+  {
+    id: 'daily-journal',
+    icon: '📔',
+    title: 'DAILY JOURNAL',
+    description: 'บันทึกเรื่องราว ความรู้สึก และช่วงเวลาของวันนี้',
+    ctaLabel: 'เขียนบันทึก',
+    to: '/hub/activities/daily-journal',
+    accent: 'lavender',
+  },
 ]
 
 const ACCENT_CLASSES: Record<ActivityDef['accent'], string> = {

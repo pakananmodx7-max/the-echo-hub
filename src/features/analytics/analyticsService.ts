@@ -32,6 +32,7 @@ export type ActivityStatKey =
   | 'echoJournal'
   | 'drawListen'
   | 'garden'
+  | 'dailyJournalCompleted'
 
 /**
  * Records this account as a Daily Active User for today's Bangkok calendar date, exactly

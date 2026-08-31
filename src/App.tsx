@@ -20,6 +20,7 @@ const EchoSpacePage = lazy(() => import('./pages/hub/EchoSpacePage').then((m) =>
 const ActivitiesPage = lazy(() => import('./pages/hub/ActivitiesPage').then((m) => ({ default: m.ActivitiesPage })))
 const SayItTodayPage = lazy(() => import('./pages/hub/activities/SayItTodayPage').then((m) => ({ default: m.SayItTodayPage })))
 const HearSomeonePage = lazy(() => import('./pages/hub/activities/HearSomeonePage').then((m) => ({ default: m.HearSomeonePage })))
+const DailyJournalPage = lazy(() => import('./pages/hub/activities/DailyJournalPage').then((m) => ({ default: m.DailyJournalPage })))
 const TalkPage = lazy(() => import('./pages/hub/TalkPage').then((m) => ({ default: m.TalkPage })))
 const NotificationsPage = lazy(() => import('./pages/hub/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
 const ChatRequestsPage = lazy(() => import('./pages/hub/talk/ChatRequestsPage').then((m) => ({ default: m.ChatRequestsPage })))
@@ -96,6 +97,7 @@ function App() {
               <Route path="activities/send-song" element={<Navigate to="/hub/activities" replace />} />
               <Route path="activities/say-it-today" element={<SayItTodayPage />} />
               <Route path="activities/hear-someone" element={<HearSomeonePage />} />
+              <Route path="activities/daily-journal" element={<DailyJournalPage />} />
               <Route path="talk" element={<TalkPage />} />
               <Route path="talk/requests" element={<ChatRequestsPage />} />
               <Route path="talk/chat/:roomId" element={<PrivateChatPage />} />

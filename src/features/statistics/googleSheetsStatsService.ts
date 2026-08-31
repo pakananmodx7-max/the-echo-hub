@@ -48,6 +48,13 @@ export interface ActivityStatsPayload {
   echoJournal: number
   drawListen: number
   garden: number
+  /** Count of first-meaningful-save-of-the-day Daily Journal completions (never entry
+   * content, mood, stickers, or which dates — see analyticsService.recordActivity and
+   * firestore.rules' dailyJournal rule for what this feature is and isn't allowed to send
+   * anywhere). Distinct from the pre-existing `echoJournal` (the drawing-based ECHO Journal,
+   * an unrelated feature left untouched — see the project report for why the two were not
+   * merged). */
+  dailyJournalCompleted: number
 }
 
 export interface StatsExportResult {

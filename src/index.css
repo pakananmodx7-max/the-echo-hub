@@ -205,6 +205,84 @@ h1, h2, h3 {
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ---------------------------------------------------------------------------
+   Daily Journal's own "paper color" theme — intentionally INDEPENDENT of the global
+   light/dark/system theme (see ThemeContext.tsx): a diary's cover color doesn't change with
+   the room lighting. Scoped to `.journal-scope` (DailyJournalPage's own root), one
+   `.journal-theme-*` modifier class picking the palette, mirroring the exact
+   `.chat-scope`/`.chat-dark` pattern above for consistency. Every palette (including
+   `dark`) defines its own readable text/border/accent regardless of the app's own theme. */
+.journal-scope {
+  --journal-bg: var(--color-cream);
+  --journal-card-bg: #fffaf0;
+  --journal-text: #4a3f2f;
+  --journal-text-soft: #8a7860;
+  --journal-border: #e8dcc4;
+  --journal-accent: #c9a961;
+}
+
+.journal-scope.journal-theme-cream {
+  --journal-bg: #fdf6e8;
+  --journal-card-bg: #fffaf0;
+  --journal-text: #4a3f2f;
+  --journal-text-soft: #8a7860;
+  --journal-border: #e8dcc4;
+  --journal-accent: #c9a961;
+}
+
+.journal-scope.journal-theme-lavender {
+  --journal-bg: #efe9fb;
+  --journal-card-bg: #f8f5ff;
+  --journal-text: #3a3245;
+  --journal-text-soft: #6b6178;
+  --journal-border: #d9cbff;
+  --journal-accent: #8b5fe8;
+}
+
+.journal-scope.journal-theme-pink {
+  --journal-bg: #fff0f5;
+  --journal-card-bg: #fff8fb;
+  --journal-text: #5c3a49;
+  --journal-text-soft: #8a6575;
+  --journal-border: #ffd7e6;
+  --journal-accent: #d9578e;
+}
+
+.journal-scope.journal-theme-blue {
+  --journal-bg: #eef5ff;
+  --journal-card-bg: #f7fbff;
+  --journal-text: #2f3f52;
+  --journal-text-soft: #5f7387;
+  --journal-border: #cfe3ff;
+  --journal-accent: #4a90d9;
+}
+
+.journal-scope.journal-theme-green {
+  --journal-bg: #eef8f0;
+  --journal-card-bg: #f7fdf8;
+  --journal-text: #2f4a37;
+  --journal-text-soft: #5f7d68;
+  --journal-border: #cdeee0;
+  --journal-accent: #4caf7a;
+}
+
+.journal-scope.journal-theme-dark {
+  --journal-bg: #1c1826;
+  --journal-card-bg: #241f30;
+  --journal-text: #f3ecff;
+  --journal-text-soft: #c7bce0;
+  --journal-border: #3c3350;
+  --journal-accent: #a480f5;
+}
+
+/* Very light paper-grain texture — a single tiny radial-gradient dot pattern, no image
+   asset — kept subtle enough to read fine on every palette above, including dark. */
+.journal-paper-texture {
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 14px 14px;
+  opacity: 0.05;
+}
+
+/* ---------------------------------------------------------------------------
    Login page background only — a calm animated evening-garden scene (see
    LoginGardenBackground.tsx). Scoped entirely under .echo-login-bg so it can
    never affect AmbientBackground or any other page's styles.

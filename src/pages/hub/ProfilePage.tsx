@@ -27,6 +27,7 @@ const ALL_ACTIVITIES = [
   { id: 'hear-someone', label: 'Hear Someone' },
   { id: 'someone-to-talk-to', label: 'Someone to Talk To' },
   { id: 'friend-bond', label: 'Friend Bond' },
+  { id: 'daily-journal', label: 'Daily Journal' },
 ]
 
 export function ProfilePage() {
