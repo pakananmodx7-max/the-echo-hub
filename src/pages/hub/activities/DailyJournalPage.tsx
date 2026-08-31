@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { PageHeader } from '../../../components/PageHeader'
 import { Card } from '../../../components/Card'
 import { Button } from '../../../components/Button'
-import { JournalCalendar } from './journal/JournalCalendar'
+import { MonthCalendar } from '../../../components/MonthCalendar'
 import { JOURNAL_THEMES, type JournalThemeId } from '../../../data/journalThemes'
 import { JOURNAL_STICKERS, MAX_JOURNAL_STICKERS } from '../../../data/journalStickers'
 import { MOODS, getMoodById } from '../../../data/moods'
@@ -175,17 +175,20 @@ export function DailyJournalPage() {
       <div className="flex flex-col gap-4 px-5 pb-6">
         {view === 'calendar' ? (
           <Card style={{ background: 'var(--journal-card-bg)' }}>
-            <JournalCalendar
+            <MonthCalendar
               year={calYear}
               month={calMonth}
               todayDate={todayDate}
               selectedDate={selectedDate}
-              entryDates={entryDates}
+              markedDates={entryDates}
               onSelectDate={openDate}
               onChangeMonth={(y, m) => {
                 setCalYear(y)
                 setCalMonth(m)
               }}
+              textColor="var(--journal-text)"
+              textSoftColor="var(--journal-text-soft)"
+              accentColor="var(--journal-accent)"
             />
           </Card>
         ) : (

@@ -126,7 +126,9 @@ service cloud.firestore {
         isSingleFieldDelta(keys, 'hearSomeone', 1) || isSingleFieldDelta(keys, 'friendBond', 1) ||
         isSingleFieldDelta(keys, 'whoAmI', 1) || isSingleFieldDelta(keys, 'echoJournal', 1) ||
         isSingleFieldDelta(keys, 'drawListen', 1) || isSingleFieldDelta(keys, 'garden', 1) ||
-        isSingleFieldDelta(keys, 'dailyJournalCompleted', 1);
+        isSingleFieldDelta(keys, 'dailyJournalCompleted', 1) ||
+        isSingleFieldDelta(keys, 'knowMeBetter', 1) || isSingleFieldDelta(keys, 'openHeartQuestion', 1) ||
+        isSingleFieldDelta(keys, 'sharedMemoryCreated', 1);
     }
 
     // Private per-user document (codename, avatarId, mood, onboarding state, completed
@@ -198,13 +200,15 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == uid;
         allow create: if request.auth != null && request.auth.uid == uid
           && request.resource.data.type in
-            ['checkin', 'garden', 'journal', 'friendbond', 'kindword', 'hearwithheart', 'daily_journal']
+            ['checkin', 'garden', 'journal', 'friendbond', 'kindword', 'hearwithheart', 'daily_journal',
+             'know_me_better', 'open_heart_question', 'shared_memory']
           && request.resource.data.date is string
           && rewardId == request.resource.data.type + '_' + request.resource.data.date
           && (
             (request.resource.data.type in ['journal', 'friendbond', 'hearwithheart']
               && request.resource.data.points == 10)
-            || (request.resource.data.type in ['checkin', 'garden', 'kindword', 'daily_journal']
+            || (request.resource.data.type in
+                ['checkin', 'garden', 'kindword', 'daily_journal', 'know_me_better', 'open_heart_question', 'shared_memory']
               && request.resource.data.points == 5)
           );
         allow update, delete: if false;
@@ -255,6 +259,95 @@ service cloud.firestore {
 
         // Preserves history, matching dailyProgress/rewards above — never deleted.
         allow delete: if false;
+      }
+
+      // One private answer per Bangkok calendar day — Open Heart Question ("ตอบของฉัน" path
+      // only; choosing "เอาไปคุยกับใครสักคน" instead never creates one of these documents at
+      // all, see openHeartAnswerService.ts). Same shape/guarantees as dailyJournal above:
+      // doc id IS the date, owner-only, updatedAt forced to server time, createdAt
+      // immutable after create. questionId/questionText are denormalized purely so a
+      // reopened answer shows which prompt it was written for — never re-derived from a
+      // shared/public question list that could change later.
+      match /openHeartAnswers/{date} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+
+        allow create: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['date', 'questionId', 'questionText', 'answer', 'createdAt', 'updatedAt'])
+          && request.resource.data.date == date
+          && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.questionId is string
+          && request.resource.data.questionId.size() <= 40
+          && request.resource.data.questionText is string
+          && request.resource.data.questionText.size() <= 300
+          && request.resource.data.answer is string
+          && request.resource.data.answer.size() <= 5000
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['date', 'questionId', 'questionText', 'answer', 'createdAt', 'updatedAt'])
+          && request.resource.data.date == date
+          && request.resource.data.questionId is string
+          && request.resource.data.questionId.size() <= 40
+          && request.resource.data.questionText is string
+          && request.resource.data.questionText.size() <= 300
+          && request.resource.data.answer is string
+          && request.resource.data.answer.size() <= 5000
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time;
+
+        allow delete: if false;
+      }
+
+      // A personal memory-timeline entry — Family Memory ("ความทรงจำของเรา"). Unlike
+      // dailyJournal/openHeartAnswers, the document id is a random auto-id (a person may
+      // save more than one memory for the same day), so there is no id-matches-date check
+      // here — ownership alone (the uid path segment) is the whole security boundary,
+      // exactly like every other subcollection in this match block. `date` is the memory's
+      // own remembered date (any day up to today, never the future — enforced client-side
+      // in the UI; the rule itself only checks it's a plausible YYYY-MM-DD string, matching
+      // this file's general "rules enforce shape and ownership, not full business logic"
+      // level elsewhere, e.g. dailyProgress above). `emoji` is checked against the exact
+      // curated set in src/data/familyMemoryOptions.ts (FAMILY_MEMORY_EMOJIS) — keep both in
+      // sync if that list ever changes. Unlike every other private record in this file,
+      // delete is explicitly allowed here (per spec: "Allow: edit, delete") — this is a
+      // personal curated collection, not an audit ledger.
+      match /familyMemories/{memoryId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+
+        allow create: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['date', 'title', 'description', 'emoji', 'tag', 'createdAt', 'updatedAt'])
+          && request.resource.data.date is string
+          && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.title is string
+          && request.resource.data.title.size() >= 1
+          && request.resource.data.title.size() <= 100
+          && request.resource.data.description is string
+          && request.resource.data.description.size() <= 1000
+          && request.resource.data.emoji in
+            ['🍚', '🏠', '👨‍👩‍👧‍👦', '🎂', '🚗', '📚', '☀️', '🌙', '🎉', '🧸', '🐶', '🎵', '❤️', '😊', '🌳', '🎈']
+          && request.resource.data.tag is string
+          && request.resource.data.tag.size() <= 30
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['date', 'title', 'description', 'emoji', 'tag', 'createdAt', 'updatedAt'])
+          && request.resource.data.date is string
+          && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.title is string
+          && request.resource.data.title.size() >= 1
+          && request.resource.data.title.size() <= 100
+          && request.resource.data.description is string
+          && request.resource.data.description.size() <= 1000
+          && request.resource.data.emoji in
+            ['🍚', '🏠', '👨‍👩‍👧‍👦', '🎂', '🚗', '📚', '☀️', '🌙', '🎉', '🧸', '🐶', '🎵', '❤️', '😊', '🌳', '🎈']
+          && request.resource.data.tag is string
+          && request.resource.data.tag.size() <= 30
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time;
+
+        allow delete: if request.auth != null && request.auth.uid == uid;
       }
     }
 

@@ -33,6 +33,9 @@ export type ActivityStatKey =
   | 'drawListen'
   | 'garden'
   | 'dailyJournalCompleted'
+  | 'knowMeBetter'
+  | 'openHeartQuestion'
+  | 'sharedMemoryCreated'
 
 /**
  * Records this account as a Daily Active User for today's Bangkok calendar date, exactly

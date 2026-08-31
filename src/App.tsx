@@ -21,6 +21,11 @@ const ActivitiesPage = lazy(() => import('./pages/hub/ActivitiesPage').then((m) 
 const SayItTodayPage = lazy(() => import('./pages/hub/activities/SayItTodayPage').then((m) => ({ default: m.SayItTodayPage })))
 const HearSomeonePage = lazy(() => import('./pages/hub/activities/HearSomeonePage').then((m) => ({ default: m.HearSomeonePage })))
 const DailyJournalPage = lazy(() => import('./pages/hub/activities/DailyJournalPage').then((m) => ({ default: m.DailyJournalPage })))
+const KnowMeBetterPage = lazy(() => import('./pages/hub/activities/KnowMeBetterPage').then((m) => ({ default: m.KnowMeBetterPage })))
+const OpenHeartQuestionPage = lazy(() =>
+  import('./pages/hub/activities/OpenHeartQuestionPage').then((m) => ({ default: m.OpenHeartQuestionPage })),
+)
+const FamilyMemoryPage = lazy(() => import('./pages/hub/activities/FamilyMemoryPage').then((m) => ({ default: m.FamilyMemoryPage })))
 const TalkPage = lazy(() => import('./pages/hub/TalkPage').then((m) => ({ default: m.TalkPage })))
 const NotificationsPage = lazy(() => import('./pages/hub/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
 const ChatRequestsPage = lazy(() => import('./pages/hub/talk/ChatRequestsPage').then((m) => ({ default: m.ChatRequestsPage })))
@@ -98,6 +103,9 @@ function App() {
               <Route path="activities/say-it-today" element={<SayItTodayPage />} />
               <Route path="activities/hear-someone" element={<HearSomeonePage />} />
               <Route path="activities/daily-journal" element={<DailyJournalPage />} />
+              <Route path="activities/know-me-better" element={<KnowMeBetterPage />} />
+              <Route path="activities/open-heart-question" element={<OpenHeartQuestionPage />} />
+              <Route path="activities/family-memory" element={<FamilyMemoryPage />} />
               <Route path="talk" element={<TalkPage />} />
               <Route path="talk/requests" element={<ChatRequestsPage />} />
               <Route path="talk/chat/:roomId" element={<PrivateChatPage />} />

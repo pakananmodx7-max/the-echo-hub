@@ -187,7 +187,7 @@ const DAILY_FIELDS = [
 
 const ACTIVITY_FIELDS = [
   'sendSong', 'sayItToday', 'hearSomeone', 'friendBond', 'whoAmI', 'echoJournal',
-  'drawListen', 'garden', 'dailyJournalCompleted',
+  'drawListen', 'garden', 'dailyJournalCompleted', 'knowMeBetter', 'openHeartQuestion', 'sharedMemoryCreated',
 ] as const
 
 /** --diag / --diagnostic anywhere in the args enables the diagnostic block below; the
@@ -298,6 +298,9 @@ async function main() {
     drawListen: num(activityData, 'drawListen'),
     garden: num(activityData, 'garden'),
     dailyJournalCompleted: num(activityData, 'dailyJournalCompleted'),
+    knowMeBetter: num(activityData, 'knowMeBetter'),
+    openHeartQuestion: num(activityData, 'openHeartQuestion'),
+    sharedMemoryCreated: num(activityData, 'sharedMemoryCreated'),
   }
 
   console.log(`[export] date=${date}`)

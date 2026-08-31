@@ -1,4 +1,14 @@
-export type MissionId = 'checkin' | 'garden' | 'journal' | 'friendbond' | 'kindword' | 'hearwithheart' | 'daily_journal'
+export type MissionId =
+  | 'checkin'
+  | 'garden'
+  | 'journal'
+  | 'friendbond'
+  | 'kindword'
+  | 'hearwithheart'
+  | 'daily_journal'
+  | 'know_me_better'
+  | 'open_heart_question'
+  | 'shared_memory'
 
 export interface MissionDef {
   id: MissionId
@@ -14,7 +24,16 @@ export interface MissionDef {
 const CORE_MISSION_IDS: MissionId[] = ['checkin', 'garden']
 
 /** The rest of the catalog, from which a few rotate in each day (see getTodaysMissionIds) — never all at once, so the daily list stays light or "3–5 missions/day" per spec. */
-const ROTATING_MISSION_IDS: MissionId[] = ['journal', 'friendbond', 'kindword', 'hearwithheart', 'daily_journal']
+const ROTATING_MISSION_IDS: MissionId[] = [
+  'journal',
+  'friendbond',
+  'kindword',
+  'hearwithheart',
+  'daily_journal',
+  'know_me_better',
+  'open_heart_question',
+  'shared_memory',
+]
 
 const HOW_MANY_ROTATING_PER_DAY = 3
 
@@ -74,6 +93,30 @@ export const MISSION_CATALOG: Record<MissionId, MissionDef> = {
     points: 5,
     ctaTo: '/hub/activities/daily-journal',
     ctaLabel: 'ไปเขียน →',
+  },
+  know_me_better: {
+    id: 'know_me_better',
+    icon: '🎯',
+    title: 'เล่น "รู้จักกันแค่ไหน?" กับคนใกล้ตัว',
+    points: 5,
+    ctaTo: '/hub/activities/know-me-better',
+    ctaLabel: 'ไปเล่น →',
+  },
+  open_heart_question: {
+    id: 'open_heart_question',
+    icon: '💬',
+    title: 'ตอบคำถามเปิดใจวันนี้',
+    points: 5,
+    ctaTo: '/hub/activities/open-heart-question',
+    ctaLabel: 'ไปดูคำถาม →',
+  },
+  shared_memory: {
+    id: 'shared_memory',
+    icon: '📸',
+    title: 'เก็บความทรงจำดี ๆ ไว้สักหนึ่งอย่าง',
+    points: 5,
+    ctaTo: '/hub/activities/family-memory',
+    ctaLabel: 'ไปเก็บความทรงจำ →',
   },
 }
 

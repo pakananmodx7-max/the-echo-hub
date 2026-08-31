@@ -1,7 +1,13 @@
-/** Monday-first weekday header for the journal calendar grid — deliberately separate from
+/**
+ * Shared Gregorian month-grid math for THE ECHO HUB's calendar views (Daily Journal, Family
+ * Memory) — pure date arithmetic, no Firestore/React here, so it's trivially unit-testable
+ * and reusable by any feature that needs a "which day is marked" month grid.
+ */
+
+/** Monday-first weekday header for a calendar grid — deliberately separate from
  * thailandDate.ts's THAI_WEEKDAY_ABBR (Sunday-first, matching JS Date#getDay(), and already
- * used elsewhere) since the calendar mock in the spec ("จ อ พ พฤ ศ ส อา") starts on Monday. */
-export const JOURNAL_WEEKDAY_ABBR_MON_FIRST = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
+ * used elsewhere) since Daily Journal's own spec mock ("จ อ พ พฤ ศ ส อา") starts on Monday. */
+export const WEEKDAY_ABBR_MON_FIRST = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0')

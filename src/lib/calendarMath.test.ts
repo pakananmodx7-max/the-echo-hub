@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dateStringFor, getMonthGrid, isFutureMonth, shiftMonth } from './journalCalendarMath'
+import { dateStringFor, getMonthGrid, isFutureMonth, shiftMonth } from './calendarMath'
 
 describe('getMonthGrid', () => {
   it('produces rows of exactly 7 cells', () => {

@@ -55,6 +55,13 @@ export interface ActivityStatsPayload {
    * an unrelated feature left untouched — see the project report for why the two were not
    * merged). */
   dailyJournalCompleted: number
+  /** FAMILY & FRIENDS section — aggregate completion counts only. Never the guessed/actual
+   * answers, the Open Heart Question's text, a memory's title/description, or any photo —
+   * see analyticsService.recordActivity and firestore.rules for what these three features
+   * are and aren't allowed to send anywhere. */
+  knowMeBetter: number
+  openHeartQuestion: number
+  sharedMemoryCreated: number
 }
 
 export interface StatsExportResult {
