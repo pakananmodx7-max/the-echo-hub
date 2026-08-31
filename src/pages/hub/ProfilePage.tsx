@@ -23,7 +23,6 @@ const THEME_OPTIONS: { id: EchoTheme; emoji: string; label: string }[] = [
 ]
 
 const ALL_ACTIVITIES = [
-  { id: 'send-song', label: 'Send a Song' },
   { id: 'say-it-today', label: 'Say It Today' },
   { id: 'hear-someone', label: 'Hear Someone' },
   { id: 'someone-to-talk-to', label: 'Someone to Talk To' },

@@ -1,4 +1,4 @@
-export type MissionId = 'checkin' | 'garden' | 'journal' | 'friendbond' | 'kindword' | 'music' | 'hearwithheart'
+export type MissionId = 'checkin' | 'garden' | 'journal' | 'friendbond' | 'kindword' | 'hearwithheart'
 
 export interface MissionDef {
   id: MissionId
@@ -14,7 +14,7 @@ export interface MissionDef {
 const CORE_MISSION_IDS: MissionId[] = ['checkin', 'garden']
 
 /** The rest of the catalog, from which a few rotate in each day (see getTodaysMissionIds) — never all at once, so the daily list stays light or "3–5 missions/day" per spec. */
-const ROTATING_MISSION_IDS: MissionId[] = ['journal', 'friendbond', 'kindword', 'music', 'hearwithheart']
+const ROTATING_MISSION_IDS: MissionId[] = ['journal', 'friendbond', 'kindword', 'hearwithheart']
 
 const HOW_MANY_ROTATING_PER_DAY = 3
 
@@ -58,14 +58,6 @@ export const MISSION_CATALOG: Record<MissionId, MissionDef> = {
     points: 5,
     ctaTo: '/hub/activities/say-it-today',
     ctaLabel: 'ไปทำกิจกรรม →',
-  },
-  music: {
-    id: 'music',
-    icon: '🎧',
-    title: 'แบ่งปันเพลงหรือเข้าร่วมกิจกรรมเพลง',
-    points: 5,
-    ctaTo: '/hub/activities/send-song',
-    ctaLabel: 'ไปส่งเพลง →',
   },
   hearwithheart: {
     id: 'hearwithheart',

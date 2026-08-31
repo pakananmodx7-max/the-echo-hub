@@ -15,7 +15,7 @@ interface ReflectionInputProps {
  * A short, private "what would you say or do?" reflection field used before a Hear with
  * Heart / Friend Bond mission can be marked complete. Never persisted or shown to anyone
  * else — it exists purely to make the student pause and put the mission into their own
- * words before submitting (see RandomMissionCard and SendSongPage).
+ * words before submitting (see RandomMissionCard).
  */
 export function ReflectionInput({ title, prompt, placeholder, helper, value, onChange, showHint }: ReflectionInputProps) {
   return (

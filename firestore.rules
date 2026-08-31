@@ -116,8 +116,13 @@ service cloud.firestore {
         isMoodRecategorize(keys);
     }
     // The full analyticsActivityDaily disjunction, taking the precomputed affected-keys set once.
+    // Send a Song was removed from the app (nothing writes 'sendSong' anymore), so that key
+    // is deliberately no longer accepted here — this only blocks a NEW write of that shape;
+    // historical analyticsActivityDaily documents with an existing sendSong field are
+    // untouched (read is unaffected, and the offline export script uses the Admin SDK, which
+    // bypasses these rules entirely).
     function isValidAnalyticsActivityDelta(keys) {
-      return isSingleFieldDelta(keys, 'sendSong', 1) || isSingleFieldDelta(keys, 'sayItToday', 1) ||
+      return isSingleFieldDelta(keys, 'sayItToday', 1) ||
         isSingleFieldDelta(keys, 'hearSomeone', 1) || isSingleFieldDelta(keys, 'friendBond', 1) ||
         isSingleFieldDelta(keys, 'whoAmI', 1) || isSingleFieldDelta(keys, 'echoJournal', 1) ||
         isSingleFieldDelta(keys, 'drawListen', 1) || isSingleFieldDelta(keys, 'garden', 1);
@@ -192,13 +197,13 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == uid;
         allow create: if request.auth != null && request.auth.uid == uid
           && request.resource.data.type in
-            ['checkin', 'garden', 'journal', 'friendbond', 'kindword', 'music', 'hearwithheart']
+            ['checkin', 'garden', 'journal', 'friendbond', 'kindword', 'hearwithheart']
           && request.resource.data.date is string
           && rewardId == request.resource.data.type + '_' + request.resource.data.date
           && (
             (request.resource.data.type in ['journal', 'friendbond', 'hearwithheart']
               && request.resource.data.points == 10)
-            || (request.resource.data.type in ['checkin', 'garden', 'kindword', 'music']
+            || (request.resource.data.type in ['checkin', 'garden', 'kindword']
               && request.resource.data.points == 5)
           );
         allow update, delete: if false;

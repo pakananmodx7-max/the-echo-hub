@@ -18,7 +18,6 @@ const HubLayout = lazy(() => import('./pages/hub/HubLayout').then((m) => ({ defa
 const HomePage = lazy(() => import('./pages/hub/HomePage').then((m) => ({ default: m.HomePage })))
 const EchoSpacePage = lazy(() => import('./pages/hub/EchoSpacePage').then((m) => ({ default: m.EchoSpacePage })))
 const ActivitiesPage = lazy(() => import('./pages/hub/ActivitiesPage').then((m) => ({ default: m.ActivitiesPage })))
-const SendSongPage = lazy(() => import('./pages/hub/activities/SendSongPage').then((m) => ({ default: m.SendSongPage })))
 const SayItTodayPage = lazy(() => import('./pages/hub/activities/SayItTodayPage').then((m) => ({ default: m.SayItTodayPage })))
 const HearSomeonePage = lazy(() => import('./pages/hub/activities/HearSomeonePage').then((m) => ({ default: m.HearSomeonePage })))
 const TalkPage = lazy(() => import('./pages/hub/TalkPage').then((m) => ({ default: m.TalkPage })))
@@ -93,7 +92,8 @@ function App() {
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="space" element={<EchoSpacePage />} />
               <Route path="activities" element={<ActivitiesPage />} />
-              <Route path="activities/send-song" element={<SendSongPage />} />
+              {/* Send a Song was removed — redirect any old bookmark/link safely instead of a broken page. */}
+              <Route path="activities/send-song" element={<Navigate to="/hub/activities" replace />} />
               <Route path="activities/say-it-today" element={<SayItTodayPage />} />
               <Route path="activities/hear-someone" element={<HearSomeonePage />} />
               <Route path="talk" element={<TalkPage />} />

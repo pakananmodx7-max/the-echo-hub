@@ -16,15 +16,6 @@ interface ActivityDef {
 
 const ACTIVITIES: ActivityDef[] = [
   {
-    id: 'send-song',
-    icon: '🎧',
-    title: 'SEND A SONG',
-    description: 'ส่งเพลงหนึ่งเพลง เพื่อบอกใครสักคนว่าเราเป็นห่วง',
-    ctaLabel: 'เริ่มกิจกรรม',
-    to: '/hub/activities/send-song',
-    accent: 'lavender',
-  },
-  {
     id: 'say-it-today',
     icon: '💬',
     title: 'SAY IT TODAY',

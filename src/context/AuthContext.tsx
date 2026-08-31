@@ -26,12 +26,11 @@ interface AuthContextValue {
   resetDemoData: () => void
 }
 
-/** Maps an existing lifetime-activity id (see completeActivity, already wired into Send a
- * Song / Say It Today / Hear Someone / Friend Quest) to the daily mission it also counts
- * toward — reuses those pages' real completion events instead of adding new ones. */
+/** Maps an existing lifetime-activity id (see completeActivity, already wired into Say It
+ * Today / Hear Someone / Friend Quest) to the daily mission it also counts toward — reuses
+ * those pages' real completion events instead of adding new ones. */
 const ACTIVITY_TO_DAILY_MISSION: Partial<Record<string, MissionId>> = {
   'say-it-today': 'kindword',
-  'send-song': 'music',
   'hear-someone': 'hearwithheart',
   'friend-bond': 'friendbond',
 }

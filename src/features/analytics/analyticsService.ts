@@ -25,7 +25,6 @@ export const MOOD_CATEGORY_BY_ID: Record<MoodId, string> = {
 }
 
 export type ActivityStatKey =
-  | 'sendSong'
   | 'sayItToday'
   | 'hearSomeone'
   | 'friendBond'

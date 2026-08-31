@@ -287,6 +287,8 @@ async function main() {
   const activityPayload: ActivityStatsPayload = {
     type: 'activity',
     date,
+    // Always 0 for any date after Send a Song was removed — see the comment on
+    // ActivityStatsPayload.sendSong for why this field is kept rather than dropped.
     sendSong: num(activityData, 'sendSong'),
     sayItToday: num(activityData, 'sayItToday'),
     hearSomeone: num(activityData, 'hearSomeone'),

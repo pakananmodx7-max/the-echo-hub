@@ -21,11 +21,3 @@ export const FRIEND_QUEST_MISSIONS: string[] = [
   'เลือกเพลงหนึ่งเพลงที่ทำให้นึกถึงเพื่อน แล้วบอกเหตุผล',
   'ถามเพื่อนว่า ช่วงนี้มีอะไรที่อยากให้เราเป็นกำลังใจให้ไหม?',
 ]
-
-export const SONG_SUGGESTIONS: { title: string; artist: string; note: string }[] = [
-  { title: 'ใจดีสู้เสือ', artist: 'Cocktail', note: 'ให้กำลังใจในวันที่เหนื่อยล้า' },
-  { title: 'เพื่อนกันวันนั้น', artist: 'Bodyslam', note: 'สำหรับเพื่อนที่อยู่ด้วยกันมานาน' },
-  { title: 'ทุกอย่าง', artist: 'Getsunova', note: 'บอกใครสักคนว่าเขามีความหมาย' },
-  { title: 'เธอต่างหากที่ทำให้ฉันดีขึ้น', artist: 'Three Man Down', note: 'ขอบคุณคนที่ทำให้เราดีขึ้น' },
-  { title: 'สบายดีไหม', artist: 'Palmy', note: 'ถามไถ่คนที่ห่างหายไป' },
-]

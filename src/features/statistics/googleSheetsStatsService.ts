@@ -35,6 +35,11 @@ export interface DailyStatsPayload {
 export interface ActivityStatsPayload {
   type: 'activity'
   date: string
+  /** The Send a Song activity was removed from the app (nothing writes analyticsActivityDaily's
+   * sendSong field anymore, so this is always 0 for any date on/after that change) — the field
+   * is kept here rather than removed so the existing Google Sheet's column layout and any
+   * date rows/formulas referencing it stay intact; historical non-zero values for earlier
+   * dates are untouched in both Firestore and the Sheet. */
   sendSong: number
   sayItToday: number
   hearSomeone: number
