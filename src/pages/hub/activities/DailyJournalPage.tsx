@@ -55,21 +55,38 @@ export function DailyJournalPage() {
   // Load the selected date's entry (a brand new date defaults to today's mood pre-filled —
   // a convenience default only, never forced: freely changeable/clearable in the mood row
   // below — and otherwise an empty draft; existing entries load exactly as saved).
+  //
+  // The textarea is `disabled={loading}` (see below) while this is in flight, so this load
+  // MUST always resolve `loading` back to false — a fetch failure (offline, a permission
+  // hiccup, a transient Firestore error) must never leave the page stuck showing a
+  // permanently-disabled textarea the student can never click, focus, or type into. On
+  // failure we fall back to an empty draft: reading an existing entry is a convenience
+  // (pre-filling what was already written), never a precondition for being allowed to write
+  // — saving still has its own independent, already-correct offline/error handling below.
   useEffect(() => {
     if (!user) return
     let cancelled = false
     setLoading(true)
     setSaveStatus('idle')
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    fetchJournalEntry(user.id, selectedDate).then((entry) => {
-      if (cancelled) return
-      const loaded: DailyJournalDraft = entry
-        ? { content: entry.content, mood: entry.mood, theme: entry.theme, stickers: entry.stickers }
-        : { ...emptyJournalDraft(), mood: selectedDate === todayDate ? user.mood : null }
-      entryExistsRef.current[selectedDate] = !!entry
-      setDraft(loaded)
-      setLoading(false)
-    })
+    fetchJournalEntry(user.id, selectedDate)
+      .then((entry) => {
+        if (cancelled) return
+        const loaded: DailyJournalDraft = entry
+          ? { content: entry.content, mood: entry.mood, theme: entry.theme, stickers: entry.stickers }
+          : { ...emptyJournalDraft(), mood: selectedDate === todayDate ? user.mood : null }
+        entryExistsRef.current[selectedDate] = !!entry
+        setDraft(loaded)
+      })
+      .catch((err) => {
+        console.error('[DailyJournalPage] fetchJournalEntry failed', err)
+        if (cancelled) return
+        entryExistsRef.current[selectedDate] = false
+        setDraft({ ...emptyJournalDraft(), mood: selectedDate === todayDate ? user.mood : null })
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => {
       cancelled = true
     }

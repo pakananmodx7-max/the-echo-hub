@@ -42,20 +42,30 @@ export function OpenHeartQuestionPage() {
   const entryExistsRef = useRef(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Same "never leave the page stuck" guarantee as DailyJournalPage's equivalent load: a
+  // fetch failure must still resolve `loading` back to false (see the .catch()/.finally()
+  // below) rather than leaving the choose/answer UI permanently hidden — reading today's
+  // existing answer is a convenience, never a precondition for being allowed to answer.
   useEffect(() => {
     if (!user) return
     let cancelled = false
-    fetchOpenHeartAnswer(user.id, today).then((entry) => {
-      if (cancelled) return
-      if (entry && entry.answer) {
-        entryExistsRef.current = true
-        const known = getOpenHeartQuestionById(entry.questionId)
-        setQuestion(known ?? { id: entry.questionId, category: 'today', text: entry.questionText })
-        setAnswer(entry.answer)
-        setView('answering')
-      }
-      setLoading(false)
-    })
+    fetchOpenHeartAnswer(user.id, today)
+      .then((entry) => {
+        if (cancelled) return
+        if (entry && entry.answer) {
+          entryExistsRef.current = true
+          const known = getOpenHeartQuestionById(entry.questionId)
+          setQuestion(known ?? { id: entry.questionId, category: 'today', text: entry.questionText })
+          setAnswer(entry.answer)
+          setView('answering')
+        }
+      })
+      .catch((err) => {
+        console.error('[OpenHeartQuestionPage] fetchOpenHeartAnswer failed', err)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => {
       cancelled = true
     }
