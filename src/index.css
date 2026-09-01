@@ -205,6 +205,41 @@ h1, h2, h3 {
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ---------------------------------------------------------------------------
+   ECHO Points reward popups (RewardPopupHost.tsx) — gentle pop/slide + a small sparkle,
+   never confetti/a heavy animation library, per the 50-level system spec's explicit
+   "encouraging and personal, not competitive" visual direction. */
+@keyframes reward-toast-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes reward-toast-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-8px) scale(0.98); }
+}
+.animate-reward-toast-in {
+  animation: reward-toast-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.animate-reward-toast-out {
+  animation: reward-toast-out 0.35s ease-in forwards;
+}
+
+@keyframes celebration-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.06); }
+}
+.animate-celebration-glow {
+  animation: celebration-glow 2.6s ease-in-out infinite;
+}
+
+@keyframes celebration-sparkle {
+  0%, 100% { opacity: 0.25; transform: translateY(0) scale(0.9); }
+  50% { opacity: 1; transform: translateY(-4px) scale(1.15); }
+}
+.animate-celebration-sparkle {
+  animation: celebration-sparkle 2.2s ease-in-out infinite;
+}
+
+/* ---------------------------------------------------------------------------
    Daily Journal's own "paper color" theme — intentionally INDEPENDENT of the global
    light/dark/system theme (see ThemeContext.tsx): a diary's cover color doesn't change with
    the room lighting. Scoped to `.journal-scope` (DailyJournalPage's own root), one

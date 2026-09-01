@@ -180,7 +180,7 @@ export function WhoAmIGamePage() {
     if (mode === 'solo') {
       setLastResult(result)
       setPhase('solo-summary')
-      void completeActivity('friend-bond')
+      void completeActivity('friend-bond', { icon: '🎮', label: 'Who Am I?' })
       void recordActivity('whoAmI')
       return
     }
@@ -202,7 +202,7 @@ export function WhoAmIGamePage() {
   function handleRoundSummaryContinue() {
     const isLast = turnIndex + 1 >= turnOrder.length
     if (isLast) {
-      void completeActivity('friend-bond')
+      void completeActivity('friend-bond', { icon: '🎮', label: 'Who Am I?' })
       void recordActivity('whoAmI')
       setPhase(mode === 'team' ? 'team-summary' : 'scoreboard')
       return

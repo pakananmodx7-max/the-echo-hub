@@ -16,6 +16,7 @@ import { useGardenPresence } from '../../../hooks/useGardenPresence'
 import { useGardenPlayers } from '../../../hooks/useGardenPlayers'
 import { useGardenSeats } from '../../../hooks/useGardenSeats'
 import { awardDailyMission } from '../../../features/rewards/rewardsService'
+import { notifyRewardResult } from '../../../features/rewards/rewardPopupBus'
 import { getBangkokDateString } from '../../../lib/thailandDate'
 import { GardenLoadingScreen } from './GardenLoadingScreen'
 import { Garden2DFallback } from './Garden2DFallback'
@@ -115,7 +116,9 @@ export function EchoGardenPage() {
   useEffect(() => {
     if (!user?.id) return
     const timer = window.setTimeout(() => {
-      void awardDailyMission(user.id, 'garden', getBangkokDateString())
+      void awardDailyMission(user.id, 'garden', getBangkokDateString()).then((result) => {
+        notifyRewardResult(result, { icon: '🌿', label: 'ECHO Garden' })
+      })
     }, GARDEN_MISSION_DWELL_MS)
     return () => window.clearTimeout(timer)
   }, [user?.id])

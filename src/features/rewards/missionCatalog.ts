@@ -42,7 +42,10 @@ export const MISSION_CATALOG: Record<MissionId, MissionDef> = {
     id: 'checkin',
     icon: '🌤️',
     title: 'เช็กอินความรู้สึกวันนี้',
-    points: 5,
+    // Was 5 points; the 50-level system's reward audit (spec §13) retargets Daily Mood to
+    // +3, its own value distinct from every other mission — see firestore.rules' matching
+    // 3-point branch on the rewards ledger and the users/{uid} checkin-specific delta check.
+    points: 3,
     ctaTo: '',
     ctaLabel: 'เช็กอินตอนนี้ →',
   },
@@ -82,7 +85,10 @@ export const MISSION_CATALOG: Record<MissionId, MissionDef> = {
     id: 'hearwithheart',
     icon: '👂',
     title: 'ทำกิจกรรม Hear with Heart',
-    points: 10,
+    // Was 10 points; the 50-level system's reward audit (spec §13) retargets Hear Someone
+    // to +5, moving it into the shared 5-point group in firestore.rules alongside the other
+    // 5-point missions (it no longer shares the 10-point group with journal/friendbond).
+    points: 5,
     ctaTo: '/hub/activities/hear-someone',
     ctaLabel: 'ไปทำกิจกรรม →',
   },

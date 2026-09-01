@@ -15,6 +15,7 @@ import {
 } from '../../../features/dailyJournal/dailyJournalService'
 import { MAX_JOURNAL_CONTENT_LENGTH, isMeaningfulJournalEntry } from '../../../features/dailyJournal/dailyJournalLimits'
 import { awardDailyMission } from '../../../features/rewards/rewardsService'
+import { notifyRewardResult } from '../../../features/rewards/rewardPopupBus'
 import { recordActivity } from '../../../features/analytics/analyticsService'
 import { useAuth } from '../../../hooks/useAuth'
 import { getBangkokDateString } from '../../../lib/thailandDate'
@@ -125,8 +126,9 @@ export function DailyJournalPage() {
     // never reaches here, and any later edit that same day resolves to `false` (already
     // granted) with no duplicate points, mission credit, or analytics count.
     if (isMeaningfulJournalEntry(nextDraft.content)) {
-      const granted = await awardDailyMission(user.id, 'daily_journal', date)
-      if (granted) {
+      const result = await awardDailyMission(user.id, 'daily_journal', date)
+      notifyRewardResult(result, { icon: '📔', label: 'Daily Journal' })
+      if (result.granted) {
         void recordActivity('dailyJournalCompleted')
         void completeActivity('daily-journal')
       }

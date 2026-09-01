@@ -7,6 +7,9 @@ import { Modal } from '../../components/Modal'
 import { Button } from '../../components/Button'
 import { MoodPicker } from '../../components/MoodPicker'
 import { EchoPointsSection } from '../../components/EchoPointsSection'
+import { LevelCard } from '../../components/LevelCard'
+import { BadgeCollection } from '../../components/BadgeCollection'
+import { getLevelFromPoints } from '../../features/rewards/levelConfig'
 import { AVATARS } from '../../data/avatars'
 import { generateCodename } from '../../data/codenames'
 import { getMoodById } from '../../data/moods'
@@ -102,6 +105,9 @@ export function ProfilePage() {
             แก้ไข Codename และ Avatar
           </Button>
         </Card>
+
+        <LevelCard totalPoints={user.totalPoints ?? 0} />
+        <BadgeCollection currentLevel={getLevelFromPoints(user.totalPoints ?? 0)} />
 
         <EchoPointsSection
           onOpenCheckin={() => {

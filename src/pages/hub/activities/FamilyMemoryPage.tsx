@@ -20,6 +20,7 @@ import {
 } from '../../../features/familyFriends/familyMemoryService'
 import { MAX_MEMORY_DESCRIPTION_LENGTH, MAX_MEMORY_TITLE_LENGTH } from '../../../features/familyFriends/familyFriendsLimits'
 import { awardDailyMission } from '../../../features/rewards/rewardsService'
+import { notifyRewardResult } from '../../../features/rewards/rewardPopupBus'
 import { recordActivity } from '../../../features/analytics/analyticsService'
 import { useAuth } from '../../../hooks/useAuth'
 import { getBangkokDateString } from '../../../lib/thailandDate'
@@ -83,8 +84,9 @@ export function FamilyMemoryPage() {
         // "Created" is the completion event, regardless of which date the memory itself
         // is about — this is what happened TODAY. Idempotent: creating several memories in
         // one day still only ever grants the day's +5 once (see awardDailyMission's ledger).
-        const granted = await awardDailyMission(user.id, 'shared_memory', today)
-        if (granted) {
+        const rewardResult = await awardDailyMission(user.id, 'shared_memory', today)
+        notifyRewardResult(rewardResult, { icon: '📸', label: 'ความทรงจำของเรา' })
+        if (rewardResult.granted) {
           void recordActivity('sharedMemoryCreated')
           void completeActivity('family-memory')
         }

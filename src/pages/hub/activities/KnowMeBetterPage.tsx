@@ -9,6 +9,7 @@ import {
   type KnowMeBetterQuestion,
 } from '../../../data/knowMeBetterQuestions'
 import { awardDailyMission } from '../../../features/rewards/rewardsService'
+import { notifyRewardResult } from '../../../features/rewards/rewardPopupBus'
 import { recordActivity } from '../../../features/analytics/analyticsService'
 import { useAuth } from '../../../hooks/useAuth'
 import { getBangkokDateString } from '../../../lib/thailandDate'
@@ -42,7 +43,9 @@ export function KnowMeBetterPage() {
     // Genuine engagement — reaching the reveal/compare step, never just opening the page.
     // Idempotent: replaying this any number of times only ever grants the day's +5 once.
     void completeActivity('know-me-better')
-    void awardDailyMission(user!.id, 'know_me_better', getBangkokDateString())
+    void awardDailyMission(user!.id, 'know_me_better', getBangkokDateString()).then((result) => {
+      notifyRewardResult(result, { icon: '🎯', label: 'รู้จักกันแค่ไหน?' })
+    })
     void recordActivity('knowMeBetter')
   }
 

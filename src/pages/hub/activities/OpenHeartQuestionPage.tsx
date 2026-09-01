@@ -15,6 +15,7 @@ import {
 } from '../../../features/familyFriends/openHeartAnswerService'
 import { MAX_OPEN_HEART_ANSWER_LENGTH, isMeaningfulText } from '../../../features/familyFriends/familyFriendsLimits'
 import { awardDailyMission } from '../../../features/rewards/rewardsService'
+import { notifyRewardResult } from '../../../features/rewards/rewardPopupBus'
 import { recordActivity } from '../../../features/analytics/analyticsService'
 import { useAuth } from '../../../hooks/useAuth'
 import { getBangkokDateString } from '../../../lib/thailandDate'
@@ -87,8 +88,9 @@ export function OpenHeartQuestionPage() {
     entryExistsRef.current = true
     setSaveStatus('saved')
     if (isMeaningfulText(nextAnswer)) {
-      const granted = await awardDailyMission(user.id, 'open_heart_question', today)
-      if (granted) {
+      const result = await awardDailyMission(user.id, 'open_heart_question', today)
+      notifyRewardResult(result, { icon: '💬', label: 'คำถามเปิดใจวันนี้' })
+      if (result.granted) {
         void recordActivity('openHeartQuestion')
         void completeActivity('open-heart-question')
       }
@@ -120,8 +122,9 @@ export function OpenHeartQuestionPage() {
     setView('took-offline')
     // A real, chosen way of engaging with today's question — completes the same daily
     // mission as answering in-app, exactly once (idempotent ledger), never any text stored.
-    const granted = await awardDailyMission(user!.id, 'open_heart_question', today)
-    if (granted) {
+    const result = await awardDailyMission(user!.id, 'open_heart_question', today)
+    notifyRewardResult(result, { icon: '💬', label: 'คำถามเปิดใจวันนี้' })
+    if (result.granted) {
       void recordActivity('openHeartQuestion')
       void completeActivity('open-heart-question')
     }

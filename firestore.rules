@@ -164,10 +164,11 @@ service cloud.firestore {
         )
         ||
         (
-          // The daily check-in specifically: +5 points, and lastCheckinDate must actually
+          // The daily check-in specifically: +3 points (50-level system's reward audit,
+          // see missionCatalog.ts's checkin entry), and lastCheckinDate must actually
           // advance to a day not already recorded — blocks replaying today's streak bump.
           request.resource.data.totalPoints is number
-          && request.resource.data.totalPoints - resource.data.get('totalPoints', 0) == 5
+          && request.resource.data.totalPoints - resource.data.get('totalPoints', 0) == 3
           && request.resource.data.lastCheckinDate is string
           && request.resource.data.lastCheckinDate != resource.data.get('lastCheckinDate', '')
           && request.resource.data.currentStreak is number
@@ -205,10 +206,13 @@ service cloud.firestore {
           && request.resource.data.date is string
           && rewardId == request.resource.data.type + '_' + request.resource.data.date
           && (
-            (request.resource.data.type in ['journal', 'friendbond', 'hearwithheart']
+            // 50-level system's reward audit (spec §13): checkin is its own distinct +3
+            // value; hearwithheart moved out of the 10-point group into the 5-point group.
+            (request.resource.data.type == 'checkin' && request.resource.data.points == 3)
+            || (request.resource.data.type in ['journal', 'friendbond']
               && request.resource.data.points == 10)
             || (request.resource.data.type in
-                ['checkin', 'garden', 'kindword', 'daily_journal', 'know_me_better', 'open_heart_question', 'shared_memory']
+                ['garden', 'kindword', 'hearwithheart', 'daily_journal', 'know_me_better', 'open_heart_question', 'shared_memory']
               && request.resource.data.points == 5)
           );
         allow update, delete: if false;
