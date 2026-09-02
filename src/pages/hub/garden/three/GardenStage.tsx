@@ -18,9 +18,12 @@ import { DEFAULT_GARDEN_AVATAR_CONFIG } from '../../../../data/gardenAvatarOptio
 
 const STAGE_FLOOR = '#a8794f'
 const STAGE_TRIM = '#8a6a4f'
-const SPEAKER_BODY = '#3a3245'
-const ACCENT = '#ffb3d1'
-const DANCE_FLOOR_COLOR = '#5a4b78'
+const SPEAKER_BODY = '#4a4038'
+// ECHO ธรรมอุทยาน retheme (spec §19: "avoid nightclub look, excessive neon") — warm
+// amber/gold instead of the previous bright pink, reading as a community-pavilion string
+// light rather than a club accent. Same fixed emissive-strip technique, just retinted.
+const ACCENT = '#f0b86a'
+const DANCE_FLOOR_COLOR = '#8a6a4f'
 
 const DJ_CONFIG = {
   ...DEFAULT_GARDEN_AVATAR_CONFIG,
@@ -124,10 +127,14 @@ function DanceFloor() {
 }
 
 /**
- * Zone I/J — a small community-event-space stage (not a nightclub): raised platform,
- * steps, two speakers, a DJ booth with a looping procedural NPC. Its footprint is solid
- * collision (see STAGE_OBSTACLES in gardenLayout.ts) — players walk around it, not onto
- * it, since this engine has no per-object avatar elevation.
+ * "🎶 ลานเสียงแห่งใจ" (Zone I/J, ECHO ธรรมอุทยาน retheme of the former "Stage/DJ Booth") —
+ * a warm wooden community performance pavilion, not a nightclub: raised platform, steps,
+ * two speakers, a DJ booth with a looping procedural NPC (visually framed as "Sound of
+ * ECHO / ผู้เปิดเพลง" in the HUD copy around it). All multiplayer/dance/emote/music systems
+ * are byte-for-byte unchanged — this file only retints materials (warm amber accent
+ * instead of pink, earthy dance-floor tone instead of violet) and updates comments/labels.
+ * Its footprint is solid collision (see STAGE_OBSTACLES in gardenLayout.ts) — players walk
+ * around it, not onto it, since this engine has no per-object avatar elevation.
  */
 export const GardenStage = memo(function GardenStage({ castShadow }: { castShadow: boolean }) {
   const wood = useMemo(() => createWoodTexture(), [])

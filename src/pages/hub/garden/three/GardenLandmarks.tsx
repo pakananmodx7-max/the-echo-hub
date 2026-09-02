@@ -100,7 +100,13 @@ function CentralTree() {
   )
 }
 
-/** A light canopy over the large social table — "ลานนั่งคุยในสวน", not a restaurant. */
+/**
+ * "ศาลาฟังใจ" (ECHO ธรรมอุทยาน retheme) — the existing canopy over the large social table,
+ * kept at its original Plaza-adjacent spot (never a second structure, per "preserve all
+ * existing working Garden systems") but re-roofed with a subtle two-tier silhouette and a
+ * warmer terracotta tone, reading as a contemporary Thai sala roof rather than a plain
+ * event tent — still simple/modest, not ornate, per the spec's own "not overly ornate".
+ */
 function Pavilion() {
   const [x, z] = PAVILION_POSITION
   const h = PAVILION_HALF_SIZE
@@ -119,9 +125,15 @@ function Pavilion() {
           <Instance key={i} position={[cx, 1.15, cz]} />
         ))}
       </Instances>
-      <mesh position={[x, 2.35, z]}>
-        <coneGeometry args={[h * 1.55, 0.75, 4]} />
-        <meshStandardMaterial color="#ffe3d0" roughness={0.7} />
+      {/* Lower, wider roof tier + a smaller upper tier — two stacked cones instead of one,
+          the cheapest possible nod to a tiered Thai roofline. */}
+      <mesh position={[x, 2.15, z]}>
+        <coneGeometry args={[h * 1.7, 0.55, 4]} />
+        <meshStandardMaterial color="#b6592f" roughness={0.65} />
+      </mesh>
+      <mesh position={[x, 2.55, z]}>
+        <coneGeometry args={[h * 1.05, 0.5, 4]} />
+        <meshStandardMaterial color="#c9713f" roughness={0.65} />
       </mesh>
       <mesh position={[x, 1.75, z]}>
         <sphereGeometry args={[0.1, 8, 8]} />

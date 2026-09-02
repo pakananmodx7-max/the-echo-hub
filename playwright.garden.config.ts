@@ -1,12 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Standalone config for the Garden V2 multiplayer verification spec only — kept separate
-// from any future general Playwright suite so this task's scope stays self-contained.
-// The dev server and Firebase emulators must already be running (see
-// scripts/garden-v2-verify.ps1) — this config does not start either.
+// Standalone config for the Garden verification specs only — kept separate from any future
+// general Playwright suite so this task's scope stays self-contained. The dev server and
+// Firebase emulators must already be running (see scripts/garden-v2-verify.ps1 for the
+// Garden V2 multiplayer spec; the ECHO ธรรมอุทยาน spec was run manually against a Linux
+// emulator setup, see that task's final report) — this config does not start either.
 export default defineConfig({
   testDir: './tests/e2e',
-  testMatch: 'garden-v2-multiplayer.spec.ts',
+  testMatch: ['garden-v2-multiplayer.spec.ts', 'garden-dhamma-verify.spec.ts'],
   timeout: 180_000,
   // Playwright's own default expect() timeout is 5s, which is far tighter than every other
   // wait in this spec (15s-45s) - most assertions here override it explicitly, but this is

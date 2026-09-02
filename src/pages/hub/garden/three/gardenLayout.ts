@@ -1,5 +1,13 @@
 export interface GardenObjectDef {
-  id: 'song-tree' | 'kind-word' | 'listening-stone-1' | 'listening-stone-2' | 'bench-1' | 'bench-2' | 'exit'
+  id:
+    | 'song-tree'
+    | 'kind-word'
+    | 'listening-stone-1'
+    | 'listening-stone-2'
+    | 'bench-1'
+    | 'bench-2'
+    | 'exit'
+    | 'mindfulness-bell'
   position: [number, number]
   icon: string
   label: string
@@ -54,6 +62,26 @@ export const GARDEN_FOG_FAR = 46
  * Zone L — Future Activity Lawn (southeast, around [9, -12]): a new flat patch, left
  * empty on purpose — same idea as the old Zone H, just relocated now that Zone H's spot
  * is built out.
+ *
+ * ECHO ธรรมอุทยาน retheme (spec §2) — a SEPARATE Thai-lettered zone naming scheme laid over
+ * the SAME physical map above (never renumbered/rebuilt, per "preserve all existing
+ * working Garden systems"). Do not confuse these letters with the Zone A-L list above:
+ *   ลานธรรมกลางสวน   -> the Plaza (Zone B above), where the Mindfulness Bell + central
+ *                        rotating quote board now sit (see MINDFULNESS_BELL, BOARD_POSITION).
+ *   ทางเดินแห่งสติ     -> the Entrance→Plaza path spine (Zone A/B), carries several signs.
+ *   สระบัวแห่งใจ       -> the waterfall pool (Zone C) — POOL_POSITION/QUIET_BENCH_SPOTS.
+ *   ศาลาฟังใจ         -> the existing Pavilion landmark (over the large social table,
+ *                        Zone E) — retextured warmer/more Thai-sala in GardenLandmarks.tsx,
+ *                        kept at its original spot rather than adding a second structure.
+ *   ลานเมตตา          -> the Group Conversation / social-tables area (Zone E).
+ *   ระฆังแห่งสติ       -> the new Mindfulness Bell object, see GARDEN_OBJECTS below.
+ *   กำแพงข้อคิด        -> realized as the set of physical quote signs themselves (see
+ *                        SIGN_QUOTES in dhammaQuotes.ts) rather than one dedicated wall.
+ *   มุมทบทวนตนเอง      -> the quiet/mindfulness benches (QUIET_BENCH_SPOTS/WATERFALL_CHAIR_
+ *                        SPOTS) — conceptually linked to Daily Journal, see EchoGardenPage.
+ *   ต้นไม้แห่งความดี    -> the new Tree of Goodness landmark, see TREE_OF_GOODNESS_POSITION.
+ *   ลานเสียงแห่งใจ      -> the existing Stage/DJ area (Zone I/J/K), retextured warmer in
+ *                        GardenStage.tsx — same multiplayer stage/dance/DJ systems, unchanged.
  */
 export const GARDEN_OBJECTS: GardenObjectDef[] = [
   { id: 'song-tree', position: [3.4, 4.1], icon: '🌳', label: 'ดู Song Tree', obstacleRadius: 0.55 },
@@ -63,6 +91,10 @@ export const GARDEN_OBJECTS: GardenObjectDef[] = [
   { id: 'bench-1', position: [7.6, -4.9], icon: '🪑', label: 'นั่งที่ Private Bench', obstacleRadius: 0.75 },
   { id: 'bench-2', position: [-6.6, 4.9], icon: '🪑', label: 'นั่งที่ Private Bench', obstacleRadius: 0.75 },
   { id: 'exit', position: [0, 9.8], icon: '🚪', label: 'ออกจากสวน', obstacleRadius: 0.4 },
+  // ECHO ธรรมอุทยาน retheme — "🔔 ระฆังแห่งสติ" (Zone F), near the Plaza. Reuses the exact
+  // same interactive-object pattern as every entry above (nearest-object HUD prompt,
+  // click → open a panel/modal) — see MindfulnessBellModal.tsx.
+  { id: 'mindfulness-bell', position: [-1.4, 1.6], icon: '🔔', label: 'ลั่นระฆังแห่งสติ', obstacleRadius: 0.5 },
 ]
 
 /**
@@ -115,6 +147,10 @@ export const POOL_POSITION: [number, number] = [-8.3, -1.3]
 export const POOL_RADIUS = 1.6
 
 export const CENTRAL_TREE_POSITION: [number, number] = [2.3, 3.3]
+/** ECHO ธรรมอุทยาน — "🌳 ต้นไม้แห่งความดี", a second major tree landmark distinct from
+ * CentralTree/SongTree (see GardenDhammaSigns.tsx). Visual/learning-only per spec §18. */
+export const TREE_OF_GOODNESS_POSITION: [number, number] = [-3.6, -4.9]
+export const TREE_OF_GOODNESS_OBSTACLE_RADIUS = 0.75
 export const FLOWER_ARCH_POSITION: [number, number] = [0, 5.0]
 /** Half-gap between the two flower-arch posts — the path runs between them. */
 export const FLOWER_ARCH_GAP = 1.1
@@ -272,6 +308,7 @@ export const GARDEN_DECOR_OBSTACLES: DecorObstacle[] = [
   { position: POOL_POSITION, radius: POOL_RADIUS },
   ...WATERFALL_CLIFF_OBSTACLES,
   { position: CENTRAL_TREE_POSITION, radius: 0.65 },
+  { position: TREE_OF_GOODNESS_POSITION, radius: TREE_OF_GOODNESS_OBSTACLE_RADIUS },
   ...PAVILION_POST_OBSTACLES,
   ...FLOWER_ARCH_POST_OBSTACLES,
   ...QUIET_BENCH_OBSTACLES,

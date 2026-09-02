@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react'
+import * as THREE from 'three'
 import { irregularRockGeometries } from './gardenRocks'
 import { createWoodTexture } from './gardenTextures'
 import type { GardenObjectDef } from './gardenLayout'
@@ -20,6 +21,7 @@ export const GardenObject = memo(function GardenObject({ def }: GardenObjectProp
       {(def.id === 'listening-stone-1' || def.id === 'listening-stone-2') && <StoneMesh x={x} z={z} />}
       {(def.id === 'bench-1' || def.id === 'bench-2') && <BenchMesh x={x} z={z} />}
       {def.id === 'exit' ? <ExitMesh x={x} z={z} /> : null}
+      {def.id === 'mindfulness-bell' ? <MindfulnessBellMesh x={x} z={z} /> : null}
     </group>
   )
 })
@@ -103,6 +105,52 @@ function BenchMesh({ x, z }: { x: number; z: number }) {
       <mesh position={[0.55, 0.14, 0]}>
         <boxGeometry args={[0.1, 0.28, 0.5]} />
         <meshStandardMaterial color="#8a6a4f" roughness={0.8} />
+      </mesh>
+    </group>
+  )
+}
+
+/**
+ * "🔔 ระฆังแห่งสติ" — a simple contemplative-garden bell on a wooden A-frame stand, not a
+ * literal temple bronze bell (spec: "do not turn the Garden into a literal temple
+ * simulator"). Same primitive-mesh approach as every other Garden prop, no new geometry
+ * system or asset.
+ */
+function MindfulnessBellMesh({ x, z }: { x: number; z: number }) {
+  const wood = useMemo(() => createWoodTexture(), [])
+  return (
+    <group position={[x, 0, z]}>
+      {/* A-frame stand */}
+      <mesh position={[-0.32, 0.9, 0]} rotation={[0, 0, 0.28]} castShadow>
+        <cylinderGeometry args={[0.05, 0.06, 1.85, 7]} />
+        <meshStandardMaterial map={wood} color="#8a6a4f" roughness={0.85} />
+      </mesh>
+      <mesh position={[0.32, 0.9, 0]} rotation={[0, 0, -0.28]} castShadow>
+        <cylinderGeometry args={[0.05, 0.06, 1.85, 7]} />
+        <meshStandardMaterial map={wood} color="#8a6a4f" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, 1.68, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.045, 0.045, 0.7, 7]} />
+        <meshStandardMaterial color="#6f5439" roughness={0.85} />
+      </mesh>
+      {/* The bell itself — a simple bronze-toned bell shape (truncated cone) + a small
+          hanging striker, deliberately plain rather than an ornate temple bell. */}
+      <mesh position={[0, 1.15, 0]} castShadow>
+        <coneGeometry args={[0.26, 0.42, 12, 1, true]} />
+        <meshStandardMaterial color="#c9a44a" roughness={0.45} metalness={0.55} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0.95, 0]}>
+        <sphereGeometry args={[0.09, 10, 10]} />
+        <meshStandardMaterial color="#b8933d" roughness={0.5} metalness={0.5} />
+      </mesh>
+      <mesh position={[0.4, 0.7, 0]}>
+        <cylinderGeometry args={[0.03, 0.03, 0.5, 6]} />
+        <meshStandardMaterial color="#8a6a4f" roughness={0.85} />
+      </mesh>
+      {/* Small warm lamp beside the bell so it reads clearly at dusk lighting. */}
+      <mesh position={[0.4, 0.98, 0]}>
+        <sphereGeometry args={[0.07, 8, 8]} />
+        <meshStandardMaterial color="#ffe9b8" emissive="#ffd27a" emissiveIntensity={0.8} />
       </mesh>
     </group>
   )

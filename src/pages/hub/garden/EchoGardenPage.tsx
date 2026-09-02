@@ -32,17 +32,37 @@ import { SongTreeModal } from './modals/SongTreeModal'
 import { KindWordModal } from './modals/KindWordModal'
 import { ListeningStoneModal } from './modals/ListeningStoneModal'
 import { PrivateBenchModal } from './modals/PrivateBenchModal'
+import { MindfulnessBellModal } from './modals/MindfulnessBellModal'
+import { GardenQuoteOverlay } from './GardenQuoteOverlay'
 import { useGardenControls, useGardenControlMode } from './three/useGardenControls'
 import { useGardenQuality } from './three/useGardenQuality'
 import { useGardenMusic } from './useGardenMusic'
-import { GARDEN_OBJECTS, pickSpawnPoint, type GardenObjectDef } from './three/gardenLayout'
+import { GARDEN_OBJECTS, POOL_POSITION, DANCE_FLOOR_POSITION, pickSpawnPoint, type GardenObjectDef } from './three/gardenLayout'
+import { PASSIVE_ZONE_QUOTES, BENCH_QUOTES, randomFrom } from '../../../features/garden/dhammaQuotes'
 import type { GardenMember } from '../../../features/garden/types'
 
 const GardenScene = lazy(() =>
   import('./three/GardenScene').then((m) => ({ default: m.GardenScene })),
 )
 
-type Panel = 'chat' | 'online' | 'activities' | 'settings' | 'emote' | 'song' | 'kind-word' | 'stone' | 'bench' | null
+type Panel = 'chat' | 'online' | 'activities' | 'settings' | 'emote' | 'song' | 'kind-word' | 'stone' | 'bench' | 'bell' | null
+
+/** ECHO ธรรมอุทยาน retheme (spec §11) — one physical region per PASSIVE_ZONE_QUOTES key,
+ * checked against the player's live x/z on every position update. Generous radii on
+ * purpose (a passive quote is a bonus, not a precision trigger) — see dhammaQuotes.ts for
+ * why only these two zones are wired (waterfall/pond are one physical area here). */
+const PASSIVE_ZONE_REGIONS: { key: string; center: [number, number]; radius: number }[] = [
+  { key: 'waterfall', center: POOL_POSITION, radius: 4.5 },
+  { key: 'stage', center: DANCE_FLOOR_POSITION, radius: 5 },
+]
+/** Spec §11: never more than 3-5 passive zone overlays in one Garden session. */
+const MAX_PASSIVE_ZONE_QUOTES_PER_SESSION = 4
+const ZONE_QUOTE_VISIBLE_MS = 5000
+const ZONE_QUOTE_FADE_MS = 350
+/** The designated "ม้านั่งพักใจ" seat ids — every quiet pond bench + waterfall chair (spec
+ * §16's "waterfall / lotus pond / large tree" locations, matching this map's actual quiet
+ * seating spots) — never every seat in the Garden. */
+const MINDFULNESS_BENCH_PREFIXES = ['pond_bench_', 'waterfall_chair_']
 
 /** How long a student must stay in the Garden before the daily "เข้า ECHO GARDEN" mission counts. */
 const GARDEN_MISSION_DWELL_MS = 45_000
@@ -70,6 +90,35 @@ export function EchoGardenPage() {
   const [myEmote, setMyEmote] = useState<{ emote: GardenEmoteId; startedAt: number } | null>(null)
   const emoteTimeoutRef = useRef<number | null>(null)
   const seatOccupancy = useGardenSeats()
+
+  // ECHO ธรรมอุทยาน retheme — passive zone-entry + mindfulness-bench reflections (spec
+  // §11/§16). Session-scoped only (a Set/ref, never persisted) — a fresh visit to the
+  // Garden always gets to see the passive overlays again, matching "per Garden session".
+  const [zoneQuote, setZoneQuote] = useState<{ heading: string; text: string } | null>(null)
+  const [zoneQuoteLeaving, setZoneQuoteLeaving] = useState(false)
+  const seenZonesRef = useRef<Set<string>>(new Set())
+  const zoneQuoteShownCountRef = useRef(0)
+  const zoneQuoteTimersRef = useRef<number[]>([])
+
+  function clearZoneQuoteTimers() {
+    for (const id of zoneQuoteTimersRef.current) window.clearTimeout(id)
+    zoneQuoteTimersRef.current = []
+  }
+
+  function showZoneQuote(heading: string, text: string) {
+    clearZoneQuoteTimers()
+    setZoneQuoteLeaving(false)
+    setZoneQuote({ heading, text })
+    zoneQuoteTimersRef.current.push(
+      window.setTimeout(() => setZoneQuoteLeaving(true), ZONE_QUOTE_VISIBLE_MS),
+      window.setTimeout(() => {
+        setZoneQuote(null)
+        setZoneQuoteLeaving(false)
+      }, ZONE_QUOTE_VISIBLE_MS + ZONE_QUOTE_FADE_MS),
+    )
+  }
+
+  useEffect(() => clearZoneQuoteTimers, [])
 
   const avatarConfig = user
     ? (avatarProfileService.getConfig(user.id) ?? DEFAULT_GARDEN_AVATAR_CONFIG)
@@ -169,6 +218,26 @@ export function EchoGardenPage() {
     else if (id === 'kind-word') setPanel('kind-word')
     else if (id === 'listening-stone-1' || id === 'listening-stone-2') setPanel('stone')
     else if (id === 'bench-1' || id === 'bench-2') setPanel('bench')
+    else if (id === 'mindfulness-bell') setPanel('bell')
+  }
+
+  // ECHO ธรรมอุทยาน retheme (spec §11) — wraps the existing reportLocalMove (RTDB presence
+  // sync, unchanged) with a passive-quote zone check. Never fires the RTDB write itself
+  // any differently; this only reads the same x/z the presence system already gets.
+  function handleLocalMove(x: number, y: number, z: number, rotationY: number) {
+    reportLocalMove(x, y, z, rotationY)
+    if (zoneQuoteShownCountRef.current >= MAX_PASSIVE_ZONE_QUOTES_PER_SESSION) return
+    for (const region of PASSIVE_ZONE_REGIONS) {
+      if (seenZonesRef.current.has(region.key)) continue
+      const dx = x - region.center[0]
+      const dz = z - region.center[1]
+      if (Math.hypot(dx, dz) > region.radius) continue
+      seenZonesRef.current.add(region.key)
+      zoneQuoteShownCountRef.current += 1
+      const quote = PASSIVE_ZONE_QUOTES[region.key]
+      if (quote) showZoneQuote(quote.title, quote.text)
+      break
+    }
   }
 
   // Garden V2 seat system — see gardenSeatService.ts for the race-safe RTDB transaction
@@ -178,7 +247,14 @@ export function EchoGardenPage() {
   // disappear once it's actually taken, so there's nothing else to reconcile here.
   async function handleSit(seatId: string) {
     const claimed = await gardenSeatService.claimSeat(seatId, gardenUser.id)
-    if (claimed) setSittingSeatId(seatId)
+    if (!claimed) return
+    setSittingSeatId(seatId)
+    // ECHO ธรรมอุทยาน retheme (spec §16) — only the designated "ม้านั่งพักใจ" seats show
+    // this, never every seat in the Garden.
+    if (MINDFULNESS_BENCH_PREFIXES.some((prefix) => seatId.startsWith(prefix))) {
+      const quote = randomFrom(BENCH_QUOTES)
+      showZoneQuote('พักตรงนี้สักครู่ก็ได้นะ 🌿', quote.text)
+    }
   }
 
   function handleStand() {
@@ -323,7 +399,7 @@ export function EchoGardenPage() {
                   onNearestSeatChange={setNearestSeatId}
                   onDanceZoneChange={setInDanceZone}
                   onMovementStart={handleMovementStart}
-                  onLocalMove={reportLocalMove}
+                  onLocalMove={handleLocalMove}
                   paused={!pageVisible}
                   quality={quality.settings}
                   onFrame={quality.reportFrame}
@@ -413,6 +489,9 @@ export function EchoGardenPage() {
           <Button fullWidth variant="secondary" onClick={() => setPanel('bench')}>
             🪑 Private Bench
           </Button>
+          <Button fullWidth variant="secondary" onClick={() => setPanel('bell')}>
+            🔔 ระฆังแห่งสติ
+          </Button>
         </div>
       </Modal>
 
@@ -453,8 +532,21 @@ export function EchoGardenPage() {
           handleGardenChatRequest(m)
         }}
       />
+      <MindfulnessBellModal
+        open={panel === 'bell'}
+        onClose={() => setPanel(null)}
+        userId={user.id}
+        onKeepInJournal={(quoteText) => {
+          setPanel(null)
+          // Never overwrites existing Journal text — DailyJournalPage only ever offers this
+          // as a dismissible, click-to-insert suggestion (spec §15).
+          navigate('/hub/activities/daily-journal', { state: { suggestedReflection: quoteText } })
+        }}
+      />
 
       <ChatRequestModal chatRequest={chatRequest} />
+
+      <GardenQuoteOverlay content={zoneQuote} leaving={zoneQuoteLeaving} />
     </div>
   )
 }

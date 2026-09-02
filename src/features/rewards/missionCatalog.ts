@@ -9,6 +9,7 @@ export type MissionId =
   | 'know_me_better'
   | 'open_heart_question'
   | 'shared_memory'
+  | 'mindfulness_bell'
 
 export interface MissionDef {
   id: MissionId
@@ -123,6 +124,19 @@ export const MISSION_CATALOG: Record<MissionId, MissionDef> = {
     points: 5,
     ctaTo: '/hub/activities/family-memory',
     ctaLabel: 'ไปเก็บความทรงจำ →',
+  },
+  // ECHO ธรรมอุทยาน retheme: the Mindfulness Bell's daily reward. Deliberately NOT in
+  // CORE_MISSION_IDS/ROTATING_MISSION_IDS — it's a Garden-internal interaction (walk up,
+  // ring the bell) rather than a "go to this page" daily-checklist habit, so it never
+  // appears in the Me tab's checklist, but still uses the exact same awardDailyMission
+  // idempotent-ledger path as every mission above.
+  mindfulness_bell: {
+    id: 'mindfulness_bell',
+    icon: '🔔',
+    title: 'ลั่นระฆังแห่งสติในสวน',
+    points: 3,
+    ctaTo: '/hub/garden',
+    ctaLabel: 'ไปที่สวน →',
   },
 }
 

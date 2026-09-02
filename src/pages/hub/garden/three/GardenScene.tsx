@@ -7,6 +7,7 @@ import { GardenObject } from './GardenObject'
 import { GardenDecor } from './GardenDecor'
 import { GardenTables } from './GardenTables'
 import { GardenLandmarks } from './GardenLandmarks'
+import { GardenDhammaSigns } from './GardenDhammaSigns'
 import { GardenSky } from './GardenSky'
 import { GardenStage } from './GardenStage'
 import { Waterfall } from './Waterfall'
@@ -177,6 +178,7 @@ export function GardenScene({
         <Waterfall />
         <GardenTables />
         <GardenLandmarks />
+        <GardenDhammaSigns />
         <GardenStage castShadow={quality.shadows} />
 
         {GARDEN_OBJECTS.map((def) => (

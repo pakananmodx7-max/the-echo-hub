@@ -288,3 +288,63 @@ export function createPoolGradientTexture(): THREE.CanvasTexture {
   poolGradientTexture = texture
   return texture
 }
+
+/**
+ * ECHO ธรรมอุทยาน — renders a quote sign's readable Thai text onto a small canvas, once
+ * per distinct piece of text (never cached as a module singleton like the tileable
+ * textures above, since every sign shows different words — the caller is expected to
+ * `useMemo` this per sign so it isn't re-rasterized every render). This is the ONE
+ * lightweight text-rendering primitive every quote-sign surface in the Garden shares
+ * (physical signs, the central rotating board) instead of any 3D text mesh/font-loading
+ * system — a flat plane with this texture costs one draw call and no extra geometry.
+ *
+ * `variant` only changes the backdrop tone (wood board vs pale stone tablet); the text
+ * layout/wrapping logic is identical either way.
+ */
+export function createSignTexture(
+  title: string,
+  body: string,
+  variant: 'wood' | 'stone' = 'wood',
+): THREE.CanvasTexture {
+  const w = 512
+  const h = 320
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+
+  const bg = variant === 'wood' ? '#f3e6c9' : '#e9e4de'
+  const border = variant === 'wood' ? '#8a6a4f' : '#a79bb0'
+  const titleColor = variant === 'wood' ? '#6f8f5e' : '#5f7a63'
+  const bodyColor = '#3a2f28'
+
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, w, h)
+  ctx.strokeStyle = border
+  ctx.lineWidth = 10
+  ctx.strokeRect(5, 5, w - 10, h - 10)
+  // A second thin inner rule reads as a carved/inlaid border rather than a flat frame.
+  ctx.lineWidth = 2
+  ctx.strokeStyle = variant === 'wood' ? 'rgba(138,106,79,0.5)' : 'rgba(167,155,176,0.5)'
+  ctx.strokeRect(20, 20, w - 40, h - 40)
+
+  // A Thai-safe sans-serif stack — every platform this app targets (Android/iOS/desktop
+  // Chrome) ships a system font covering Thai glyphs under one of these names.
+  const fontStack = '"Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif'
+
+  ctx.textAlign = 'center'
+  ctx.fillStyle = titleColor
+  ctx.font = `700 30px ${fontStack}`
+  ctx.fillText(title, w / 2, 66)
+
+  ctx.fillStyle = bodyColor
+  ctx.font = `500 34px ${fontStack}`
+  const lines = body.split('\n')
+  const lineHeight = 46
+  const startY = h / 2 - ((lines.length - 1) * lineHeight) / 2 + 8
+  lines.forEach((line, i) => ctx.fillText(line, w / 2, startY + i * lineHeight))
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}

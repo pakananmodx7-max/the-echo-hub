@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { PageHeader } from '../../../components/PageHeader'
 import { Card } from '../../../components/Card'
 import { Button } from '../../../components/Button'
@@ -39,6 +40,15 @@ function formatThaiDate(dateStr: string): string {
 export function DailyJournalPage() {
   const { user, completeActivity } = useAuth()
   const todayDate = getBangkokDateString()
+  const location = useLocation()
+
+  // ECHO ธรรมอุทยาน retheme (spec §15) — an optional reflection offered from the Garden's
+  // Mindfulness Bell, captured once from navigation state. Purely a suggestion the student
+  // may insert with one tap; it is NEVER auto-written into `draft.content`, and dismissing
+  // it (or just navigating away) leaves any existing entry completely untouched.
+  const [suggestedReflection, setSuggestedReflection] = useState<string | null>(
+    () => (location.state as { suggestedReflection?: string } | null)?.suggestedReflection ?? null,
+  )
 
   const [view, setView] = useState<View>('write')
   const [selectedDate, setSelectedDate] = useState(todayDate)
@@ -160,6 +170,13 @@ export function DailyJournalPage() {
     }
   }
 
+  function insertSuggestedReflection() {
+    if (!suggestedReflection) return
+    const next = draft.content.trim().length > 0 ? `${draft.content}\n\n${suggestedReflection}` : suggestedReflection
+    updateDraft({ content: next })
+    setSuggestedReflection(null)
+  }
+
   function openDate(date: string) {
     setSelectedDate(date)
     setView('write')
@@ -255,6 +272,39 @@ export function DailyJournalPage() {
                 >
                   {loading ? 'กำลังโหลด...' : statusText[saveStatus]}
                 </p>
+
+                {suggestedReflection && selectedDate === todayDate ? (
+                  <div
+                    className="mt-3 rounded-2xl border px-3.5 py-3"
+                    style={{ borderColor: 'var(--journal-border)', background: 'var(--journal-border)' }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs font-semibold" style={{ color: 'var(--journal-text-soft)' }}>
+                        🌿 ข้อคิดจากสวน
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSuggestedReflection(null)}
+                        aria-label="ปิด"
+                        className="shrink-0 text-xs"
+                        style={{ color: 'var(--journal-text-soft)' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <p className="mt-1 whitespace-pre-line text-sm" style={{ color: 'var(--journal-text)' }}>
+                      {suggestedReflection}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={insertSuggestedReflection}
+                      className="mt-2 text-xs font-semibold"
+                      style={{ color: 'var(--journal-accent)' }}
+                    >
+                      ➕ ใส่ในบันทึก
+                    </button>
+                  </div>
+                ) : null}
 
                 <textarea
                   value={draft.content}

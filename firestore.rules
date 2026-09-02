@@ -155,11 +155,13 @@ service cloud.firestore {
         ||
         (
           // A non-checkin daily mission: only totalPoints moves, by exactly one valid
-          // reward amount (5 or 10 — the only two point values in the mission catalog).
+          // reward amount (3, 5, or 10 — the only point values in the mission catalog
+          // outside checkin's own dedicated branch below; 3 is the Mindfulness Bell's).
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['currentStreak', 'bestStreak', 'lastCheckinDate'])
           && request.resource.data.totalPoints is number
-          && (request.resource.data.totalPoints - resource.data.get('totalPoints', 0) == 5
+          && (request.resource.data.totalPoints - resource.data.get('totalPoints', 0) == 3
+              || request.resource.data.totalPoints - resource.data.get('totalPoints', 0) == 5
               || request.resource.data.totalPoints - resource.data.get('totalPoints', 0) == 10)
         )
         ||
@@ -202,13 +204,16 @@ service cloud.firestore {
         allow create: if request.auth != null && request.auth.uid == uid
           && request.resource.data.type in
             ['checkin', 'garden', 'journal', 'friendbond', 'kindword', 'hearwithheart', 'daily_journal',
-             'know_me_better', 'open_heart_question', 'shared_memory']
+             'know_me_better', 'open_heart_question', 'shared_memory', 'mindfulness_bell']
           && request.resource.data.date is string
           && rewardId == request.resource.data.type + '_' + request.resource.data.date
           && (
             // 50-level system's reward audit (spec §13): checkin is its own distinct +3
             // value; hearwithheart moved out of the 10-point group into the 5-point group.
-            (request.resource.data.type == 'checkin' && request.resource.data.points == 3)
+            // ECHO ธรรมอุทยาน retheme: the Mindfulness Bell is also its own +3 (same value
+            // as checkin, but a separate type/date-keyed ledger doc, so it can never be
+            // confused with or substitute for the daily check-in).
+            (request.resource.data.type in ['checkin', 'mindfulness_bell'] && request.resource.data.points == 3)
             || (request.resource.data.type in ['journal', 'friendbond']
               && request.resource.data.points == 10)
             || (request.resource.data.type in
