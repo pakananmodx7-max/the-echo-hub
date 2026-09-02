@@ -18,11 +18,12 @@
 //   npx playwright test tests/e2e/garden-dhamma-verify.spec.ts --config=playwright.garden.config.ts
 
 import { test, expect, type Page, type Locator } from '@playwright/test'
-import { initializeApp, deleteApp, type App, cert } from 'firebase-admin/app'
+import { initializeApp, deleteApp, type App } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 
 const FIREBASE_PROJECT_ID = process.env.GARDEN_TEST_PROJECT_ID ?? 'the-echo-hub'
 const BASE_URL = process.env.GARDEN_TEST_BASE_URL ?? 'http://127.0.0.1:5173'
+const AUTH_EMULATOR_HOST = process.env.GARDEN_TEST_AUTH_HOST ?? '127.0.0.1:9099'
 const RUN_ID = Date.now().toString(36)
 
 let adminApp: App
@@ -74,10 +75,20 @@ async function signUpAndEnterGarden(page: Page): Promise<{ codename: string; ema
   return { codename, email }
 }
 
+// firebase-admin/auth (getAuth().getUserByEmail) is avoided here — importing it in this
+// environment crashes module resolution (a jose/jwks-rsa ESM interop bug), which took the
+// entire spec file down with "No tests found" the first time this was tried. The Auth
+// emulator's own admin-only accounts:query REST endpoint (accepts "Authorization: Bearer
+// owner" instead of a real service-account token, exactly the emulator's documented
+// escape hatch) does the same lookup with zero extra dependency risk.
 async function findUid(email: string): Promise<string> {
   const res = await fetch(
-    `http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/accounts:query`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: [email] }) },
+    `http://${AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/accounts:query`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
+      body: JSON.stringify({ returnUserInfo: true }),
+    },
   )
   const data = (await res.json()) as { userInfo?: { localId: string; email: string }[] }
   const match = data.userInfo?.find((u) => u.email === email)
