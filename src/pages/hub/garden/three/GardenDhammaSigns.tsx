@@ -2,15 +2,14 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { createSignTexture } from './gardenTextures'
 import { irregularRockGeometries } from './gardenRocks'
-import { TREE_OF_GOODNESS_POSITION } from './gardenLayout'
-import { SIGN_QUOTES, BOARD_QUOTES, TREE_OF_GOODNESS_QUOTES, type DhammaQuote } from '../../../../features/garden/dhammaQuotes'
+import { TREE_OF_GOODNESS_POSITION, REFLECTION_WALL_POSITION } from './gardenLayout'
+import { SIGN_QUOTES, WALL_QUOTES, TREE_OF_GOODNESS_QUOTES, type DhammaQuote } from '../../../../features/garden/dhammaQuotes'
 
-/** Central "ข้อคิดวันนี้" board — near the Plaza, distinct from any single sign's spot. */
-const BOARD_POSITION: [number, number] = [-0.9, -0.6]
-
-const BOARD_ROTATE_INTERVAL_MS = 40_000
-const BOARD_FADE_MS = 700
+const WALL_ROTATE_INTERVAL_MS = 50_000
+const WALL_FADE_MS = 800
 const TREE_SIGN_ROTATE_INTERVAL_MS = 40_000
+/** How many quotes the Reflection Wall shows at once (spec §13: "only a few quotes at once"). */
+const WALL_PANEL_COUNT = 3
 
 function prefersReducedMotion(): boolean {
   try {
@@ -46,8 +45,9 @@ function QuoteSignPost({ quote, variant = 'wood' }: { quote: DhammaQuote; varian
   )
 }
 
-/** Every physical, always-visible quote sign across the Garden — see SIGN_QUOTES in
- * dhammaQuotes.ts for the full placement list (currently 13, target 12-18 per spec §7). */
+/** Every physical, always-visible quote sign across the Garden — deliberately trimmed to
+ * 4 (2 pavilion, 1 waterfall, 1 pond) by the map-declutter pass; see SIGN_QUOTES in
+ * dhammaQuotes.ts. No main walking path carries a sign anymore. */
 const DhammaSigns = memo(function DhammaSigns() {
   return (
     <>
@@ -58,74 +58,109 @@ const DhammaSigns = memo(function DhammaSigns() {
   )
 })
 
-/** The central rotating "🌿 ข้อคิดวันนี้" board — cycles BOARD_QUOTES automatically with a
- * gentle crossfade, no click, no Firebase sync needed (every nearby player just reads
- * whatever text is currently rendered — a purely client-local, session-scoped rotation is
- * indistinguishable from a synced one for this purpose). Respects prefers-reduced-motion
- * by swapping instantly instead of fading. */
-function CentralQuoteBoard() {
-  const [index, setIndex] = useState(0)
+/** One panel of the Reflection Wall — its own texture (never cached, text differs per
+ * quote), fading in lockstep with the other panels via the shared `opacity`. */
+function WallPanel({ quote, offsetX, opacity }: { quote: DhammaQuote; offsetX: number; opacity: number }) {
+  const texture = useMemo(() => createSignTexture(quote.title, quote.text, 'wood'), [quote.title, quote.text])
+  return (
+    <group position={[offsetX, 0, 0]}>
+      <mesh position={[0, 1.1, 0.04]}>
+        <planeGeometry args={[0.85, 0.56]} />
+        <meshStandardMaterial map={texture} roughness={0.8} transparent opacity={opacity} />
+      </mesh>
+      <mesh position={[0, 1.1, -0.005]}>
+        <boxGeometry args={[0.9, 0.6, 0.04]} />
+        <meshStandardMaterial color="#6f5439" roughness={0.9} transparent opacity={opacity} />
+      </mesh>
+    </group>
+  )
+}
+
+/**
+ * "🪨 กำแพงข้อคิด" Reflection Wall — the primary quote surface now (spec §13), replacing
+ * the old single central board. A low stone wall carries 3 wooden panels side by side
+ * (spec: "display only a few quotes at once"), all crossfading together on a slow
+ * interval through WALL_QUOTES (13 reflections — everything relocated off the walking
+ * paths, see dhammaQuotes.ts's map-declutter comments). No click required, no Firebase
+ * sync needed (purely client-local, session-scoped rotation). Respects
+ * prefers-reduced-motion by swapping instantly instead of fading.
+ */
+function ReflectionWall() {
+  const [page, setPage] = useState(0)
   const [opacity, setOpacity] = useState(1)
   const reduced = useMemo(() => prefersReducedMotion(), [])
   const phaseRef = useRef<'idle' | 'fadeOut' | 'fadeIn'>('idle')
   const phaseStartRef = useRef(0)
+  const pageCount = Math.max(1, Math.ceil(WALL_QUOTES.length / WALL_PANEL_COUNT))
 
   useEffect(() => {
     if (reduced) {
-      const id = window.setInterval(() => setIndex((i) => (i + 1) % BOARD_QUOTES.length), BOARD_ROTATE_INTERVAL_MS)
+      const id = window.setInterval(() => setPage((p) => (p + 1) % pageCount), WALL_ROTATE_INTERVAL_MS)
       return () => window.clearInterval(id)
     }
     const id = window.setInterval(() => {
       phaseRef.current = 'fadeOut'
       phaseStartRef.current = performance.now()
-    }, BOARD_ROTATE_INTERVAL_MS)
+    }, WALL_ROTATE_INTERVAL_MS)
     return () => window.clearInterval(id)
-  }, [reduced])
+  }, [reduced, pageCount])
 
   useFrame(() => {
     if (reduced || phaseRef.current === 'idle') return
     const elapsed = performance.now() - phaseStartRef.current
     if (phaseRef.current === 'fadeOut') {
-      const t = Math.min(1, elapsed / BOARD_FADE_MS)
+      const t = Math.min(1, elapsed / WALL_FADE_MS)
       setOpacity(1 - t)
       if (t >= 1) {
-        setIndex((i) => (i + 1) % BOARD_QUOTES.length)
+        setPage((p) => (p + 1) % pageCount)
         phaseRef.current = 'fadeIn'
         phaseStartRef.current = performance.now()
       }
     } else if (phaseRef.current === 'fadeIn') {
-      const t = Math.min(1, elapsed / BOARD_FADE_MS)
+      const t = Math.min(1, elapsed / WALL_FADE_MS)
       setOpacity(t)
       if (t >= 1) phaseRef.current = 'idle'
     }
   })
 
-  const quote = BOARD_QUOTES[index]
-  const texture = useMemo(() => createSignTexture('🌿 ข้อคิดวันนี้', quote.text, 'wood'), [quote.text])
-  const [x, z] = BOARD_POSITION
+  const panelQuotes = useMemo(
+    () => Array.from({ length: WALL_PANEL_COUNT }, (_, i) => WALL_QUOTES[(page * WALL_PANEL_COUNT + i) % WALL_QUOTES.length]),
+    [page],
+  )
+  const [x, z] = REFLECTION_WALL_POSITION
+  // Faces roughly toward the map center, same convention as every standalone sign post.
+  const facing = Math.atan2(-x, -z)
 
   return (
-    <group position={[x, 0, z]}>
-      <mesh position={[-0.5, 0.7, 0]} castShadow>
-        <cylinderGeometry args={[0.06, 0.07, 1.4, 7]} />
-        <meshStandardMaterial color="#8a6a4f" roughness={0.85} />
+    <group position={[x, 0, z]} rotation={[0, facing, 0]}>
+      {/* Low natural-stone wall base. */}
+      <mesh position={[0, 0.65, -0.06]} receiveShadow>
+        <boxGeometry args={[3.1, 1.5, 0.18]} />
+        <meshStandardMaterial color="#8b8478" roughness={0.95} />
       </mesh>
-      <mesh position={[0.5, 0.7, 0]} castShadow>
-        <cylinderGeometry args={[0.06, 0.07, 1.4, 7]} />
-        <meshStandardMaterial color="#8a6a4f" roughness={0.85} />
+      <mesh position={[0, 0.02, -0.06]}>
+        <boxGeometry args={[3.3, 0.14, 0.26]} />
+        <meshStandardMaterial color="#726c62" roughness={0.95} />
       </mesh>
-      <mesh position={[0, 1.45, 0.03]}>
-        <planeGeometry args={[1.15, 0.68]} />
-        <meshStandardMaterial map={texture} roughness={0.8} transparent opacity={opacity} />
+      {panelQuotes.map((quote, i) => (
+        <WallPanel key={`${page}-${i}`} quote={quote} offsetX={(i - 1) * 1.05} opacity={opacity} />
+      ))}
+      {/* A couple of warm garden lights + low planting either side, per spec §13's "warm
+          garden lights, plants around it". */}
+      <mesh position={[-1.65, 1.5, 0.1]}>
+        <sphereGeometry args={[0.09, 8, 8]} />
+        <meshStandardMaterial color="#ffe9b8" emissive="#ffd27a" emissiveIntensity={1.0} />
       </mesh>
-      <mesh position={[0, 1.45, -0.02]}>
-        <boxGeometry args={[1.2, 0.72, 0.04]} />
-        <meshStandardMaterial color="#6f5439" roughness={0.9} />
+      <mesh position={[1.65, 1.5, 0.1]}>
+        <sphereGeometry args={[0.09, 8, 8]} />
+        <meshStandardMaterial color="#ffe9b8" emissive="#ffd27a" emissiveIntensity={1.0} />
       </mesh>
-      <mesh position={[0, 2.18, 0]}>
-        <coneGeometry args={[0.85, 0.28, 4]} />
-        <meshStandardMaterial color="#c98a5f" roughness={0.75} />
-      </mesh>
+      {[-1.4, -0.7, 0.7, 1.4].map((px, i) => (
+        <mesh key={i} position={[px, 0.16, 0.35]}>
+          <sphereGeometry args={[0.1, 6, 6]} />
+          <meshStandardMaterial color="#6fa87f" roughness={0.85} />
+        </mesh>
+      ))}
     </group>
   )
 }
@@ -228,7 +263,7 @@ export const GardenDhammaSigns = memo(function GardenDhammaSigns() {
   return (
     <>
       <DhammaSigns />
-      <CentralQuoteBoard />
+      <ReflectionWall />
       <TreeOfGoodness />
     </>
   )

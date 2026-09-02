@@ -62,26 +62,36 @@ export const GARDEN_FOG_FAR = 46
  * Zone L — Future Activity Lawn (southeast, around [9, -12]): a new flat patch, left
  * empty on purpose — same idea as the old Zone H, just relocated now that Zone H's spot
  * is built out.
+ * Zone M — 🛕 ECHO Temple Grounds (map-declutter pass, southwest corner around [-9.5,
+ * -12]): a new Thai temple-inspired quiet zone built into previously-unused space — see
+ * the "Temple Grounds" doc block above STAGE_POSITION below for the full layout
+ * (TEMPLE_HALL_POSITION, TEMPLE_FORECOURT_CENTER, REFLECTION_WALL_POSITION,
+ * BODHI_TREE_POSITION). Exterior-only Thai Ubosot-style hall, no interior, no statues, no
+ * second reward bell — the existing Mindfulness Bell (Zone F below) stays the only one.
  *
  * ECHO ธรรมอุทยาน retheme (spec §2) — a SEPARATE Thai-lettered zone naming scheme laid over
  * the SAME physical map above (never renumbered/rebuilt, per "preserve all existing
- * working Garden systems"). Do not confuse these letters with the Zone A-L list above:
- *   ลานธรรมกลางสวน   -> the Plaza (Zone B above), where the Mindfulness Bell + central
- *                        rotating quote board now sit (see MINDFULNESS_BELL, BOARD_POSITION).
- *   ทางเดินแห่งสติ     -> the Entrance→Plaza path spine (Zone A/B), carries several signs.
+ * working Garden systems"). Do not confuse these letters with the Zone A-L(M) list above:
+ *   ลานธรรมกลางสวน   -> the Plaza (Zone B above), where the Mindfulness Bell sits (see
+ *                        MINDFULNESS_BELL in GARDEN_OBJECTS below).
+ *   ทางเดินแห่งสติ     -> the Entrance→Plaza path spine (Zone A/B) — map-declutter pass:
+ *                        carries NO signs anymore (trees/grass/lanterns only).
  *   สระบัวแห่งใจ       -> the waterfall pool (Zone C) — POOL_POSITION/QUIET_BENCH_SPOTS.
  *   ศาลาฟังใจ         -> the existing Pavilion landmark (over the large social table,
  *                        Zone E) — retextured warmer/more Thai-sala in GardenLandmarks.tsx,
  *                        kept at its original spot rather than adding a second structure.
  *   ลานเมตตา          -> the Group Conversation / social-tables area (Zone E).
  *   ระฆังแห่งสติ       -> the new Mindfulness Bell object, see GARDEN_OBJECTS below.
- *   กำแพงข้อคิด        -> realized as the set of physical quote signs themselves (see
- *                        SIGN_QUOTES in dhammaQuotes.ts) rather than one dedicated wall.
+ *   กำแพงข้อคิด        -> map-declutter pass: now realized as ONE physical structure, the
+ *                        "🪨 กำแพงข้อคิด" Reflection Wall at REFLECTION_WALL_POSITION (see
+ *                        the Temple Grounds doc block below) — the primary quote surface,
+ *                        replacing both the old central board and most of the old signs.
  *   มุมทบทวนตนเอง      -> the quiet/mindfulness benches (QUIET_BENCH_SPOTS/WATERFALL_CHAIR_
  *                        SPOTS) — conceptually linked to Daily Journal, see EchoGardenPage.
- *   ต้นไม้แห่งความดี    -> the new Tree of Goodness landmark, see TREE_OF_GOODNESS_POSITION.
+ *   ต้นไม้แห่งความดี    -> the Tree of Goodness landmark, see TREE_OF_GOODNESS_POSITION.
  *   ลานเสียงแห่งใจ      -> the existing Stage/DJ area (Zone I/J/K), retextured warmer in
  *                        GardenStage.tsx — same multiplayer stage/dance/DJ systems, unchanged.
+ *   เขตสงบ            -> Zone M, ECHO Temple Grounds, see above.
  */
 export const GARDEN_OBJECTS: GardenObjectDef[] = [
   { id: 'song-tree', position: [3.4, 4.1], icon: '🌳', label: 'ดู Song Tree', obstacleRadius: 0.55 },
@@ -168,6 +178,61 @@ export const LANTERN_SPOTS: [number, number][] = [
   [-9.2, 1.7],
   [2.4, -5.3],
   [4.0, -3.0],
+  // Temple Grounds forecourt (see the zone doc block above STAGE_POSITION).
+  [-8.0, -13.0],
+  [-11.0, -13.0],
+  [-9.5, -10.2],
+]
+
+// --- Temple Grounds (map-declutter pass — "🛕 เขตสงบ / ECHO Temple Grounds") ------------
+//
+// New zone built into the map's genuinely unused southwest corner — well clear of every
+// existing cluster (Waterfall ~10.7 units away, Tree of Goodness ~8.5 units away, the
+// Stage ~9 units away in x alone) so it reads as its own quiet destination rather than
+// crowding an already-built area, and stays visually separated from ลานเสียงแห่งใจ (the
+// spec's own requirement). Reached by a single new path branch off the EXISTING
+// Plaza→Stage spine's [0, -6.6] waypoint (that waypoint is untouched — this only adds a
+// second polyline starting at the same point, exactly the pattern every other branch in
+// GARDEN_PATH_WAYPOINTS below already uses).
+//
+// V1 is exterior-only (spec §7): one Thai Ubosot-style hall (a solid, walk-around
+// landmark — same "circles approximate the footprint" treatment as the Stage/Pavilion,
+// no interior, no statues), an open paved forecourt with a couple of trees/lanterns/low
+// planters and edge seating, and a large Bodhi-style shade tree with a few quiet seats.
+// The existing Mindfulness Bell remains the only reward-granting interactive object in
+// the Garden — nothing here is a second bell or a new interaction system.
+export const TEMPLE_HALL_POSITION: [number, number] = [-9.5, -14.2]
+export const TEMPLE_HALL_HALF_WIDTH = 2.0
+export const TEMPLE_HALL_HALF_DEPTH = 1.3
+export const TEMPLE_HALL_PLATFORM_HEIGHT = 0.3
+/** Open paved courtyard between the path entrance and the hall — kept deliberately empty
+ * at its center (spec §8: "do not fill the courtyard with props"). */
+export const TEMPLE_FORECOURT_CENTER: [number, number] = [-9.5, -11.8]
+export const TEMPLE_FORECOURT_RADIUS = 2.3
+/** "🪨 กำแพงข้อคิด" — the primary quote surface now (spec §13), placed at the transition
+ * between the Garden proper and Temple Grounds, just off the path's [-6.4,-8.3] bend (not
+ * ON the walking lane itself, same "beside, not blocking" treatment as every remaining
+ * physical sign). */
+export const REFLECTION_WALL_POSITION: [number, number] = [-7.0, -7.6]
+/** A large Bodhi-inspired shade tree off to the forecourt's west side (never blocking the
+ * open center) with a few quiet seats underneath (spec §9). */
+export const BODHI_TREE_POSITION: [number, number] = [-12.6, -10.6]
+export const BODHI_TREE_OBSTACLE_RADIUS = 0.8
+export const BODHI_SEAT_SPOTS: [number, number][] = [
+  [-13.7, -9.8],
+  [-13.7, -11.4],
+  [-11.8, -9.5],
+]
+/** Seating along the forecourt's outer edge (spec §8) — never in the open center. */
+export const TEMPLE_EDGE_SEAT_SPOTS: [number, number][] = [
+  [-7.2, -12.6],
+  [-11.9, -12.6],
+]
+/** A couple of small forecourt trees, kept off to the sides (spec §8: "a few trees", not a
+ * grove) — light obstacles like every other small tree trunk in this file. */
+export const TEMPLE_TREE_SPOTS: [number, number][] = [
+  [-7.6, -10.8],
+  [-11.5, -8.5],
 ]
 
 /** Individual seating in the quiet garden around the pool — now real, sittable solo seats (see SEATS below). */
@@ -303,6 +368,20 @@ const STAGE_OBSTACLES: DecorObstacle[] = [
 ]
 const SPEAKER_OBSTACLES: DecorObstacle[] = SPEAKER_POSITIONS.map((position) => ({ position, radius: 0.35 }))
 
+/**
+ * The temple hall's footprint, same "a few overlapping circles" treatment as the stage —
+ * solid, walk-around, not a walkable elevated surface.
+ */
+const TEMPLE_HALL_OBSTACLES: DecorObstacle[] = [
+  { position: [TEMPLE_HALL_POSITION[0] - 1.2, TEMPLE_HALL_POSITION[1]], radius: 1.3 },
+  { position: TEMPLE_HALL_POSITION, radius: 1.5 },
+  { position: [TEMPLE_HALL_POSITION[0] + 1.2, TEMPLE_HALL_POSITION[1]], radius: 1.3 },
+]
+const BODHI_TREE_OBSTACLE: DecorObstacle = { position: BODHI_TREE_POSITION, radius: BODHI_TREE_OBSTACLE_RADIUS }
+const TEMPLE_TREE_OBSTACLES: DecorObstacle[] = TEMPLE_TREE_SPOTS.map((position) => ({ position, radius: 0.45 }))
+const BODHI_SEAT_OBSTACLES: DecorObstacle[] = BODHI_SEAT_SPOTS.map((position) => ({ position, radius: 0.4 }))
+const TEMPLE_EDGE_SEAT_OBSTACLES: DecorObstacle[] = TEMPLE_EDGE_SEAT_SPOTS.map((position) => ({ position, radius: 0.4 }))
+
 /** Every non-interactive obstacle in the map — tap-to-move must route around all of these (req. #11). */
 export const GARDEN_DECOR_OBSTACLES: DecorObstacle[] = [
   { position: POOL_POSITION, radius: POOL_RADIUS },
@@ -316,6 +395,11 @@ export const GARDEN_DECOR_OBSTACLES: DecorObstacle[] = [
   ...TABLE_OBSTACLES,
   ...STAGE_OBSTACLES,
   ...SPEAKER_OBSTACLES,
+  ...TEMPLE_HALL_OBSTACLES,
+  BODHI_TREE_OBSTACLE,
+  ...TEMPLE_TREE_OBSTACLES,
+  ...BODHI_SEAT_OBSTACLES,
+  ...TEMPLE_EDGE_SEAT_OBSTACLES,
 ]
 
 // --- Paths -----------------------------------------------------------------------------
@@ -360,6 +444,10 @@ const GARDEN_PATH_WAYPOINTS: PathWaypoints[] = [
   // Waterfall → its own quiet-table stubs
   { points: [[-8.3, -1.3], [-7.3, -3.7]], width: 1.0 },
   { points: [[-8.3, -1.3], [-6.9, 1.6]], width: 1.0 },
+  // Branch: Plaza→Stage spine's [0,-6.6] waypoint → Reflection Wall → Temple Grounds
+  // forecourt entrance (see the Temple Grounds doc block above STAGE_POSITION) — joins the
+  // existing spine at that exact point rather than adding a second parallel southbound path.
+  { points: [[0, -6.6], [-3.6, -7.6], [-6.4, -8.3], [-8.6, -10.0], [-9.5, -11.8]], width: 1.5 },
 ]
 
 function segmentsFromWaypoints(paths: PathWaypoints[]): PathSegmentSpec[] {
@@ -438,6 +526,25 @@ export const SEATS: SeatDef[] = [
       id: `waterfall_chair_${String(i + 1).padStart(2, '0')}`,
       position,
       rotation: facingTowards(position, POOL_POSITION),
+      kind: 'solo',
+    }),
+  ),
+  // Temple Grounds — Bodhi tree seats and forecourt edge seating (spec §9/§8). The
+  // `bodhi_seat_` id prefix is what EchoGardenPage.tsx matches on to show the exact fixed
+  // phrase from spec §9 on sit, instead of a random dhammaQuotes.ts bench reflection.
+  ...BODHI_SEAT_SPOTS.map(
+    (position, i): SeatDef => ({
+      id: `bodhi_seat_${String(i + 1).padStart(2, '0')}`,
+      position,
+      rotation: facingTowards(position, BODHI_TREE_POSITION),
+      kind: 'solo',
+    }),
+  ),
+  ...TEMPLE_EDGE_SEAT_SPOTS.map(
+    (position, i): SeatDef => ({
+      id: `temple_edge_seat_${String(i + 1).padStart(2, '0')}`,
+      position,
+      rotation: facingTowards(position, TEMPLE_FORECOURT_CENTER),
       kind: 'solo',
     }),
   ),

@@ -226,6 +226,27 @@ export function useGardenMusic(track: GardenTrack) {
     else playerRef.current?.unMute()
   }
 
+  /**
+   * ECHO ธรรมอุทยาน map-declutter pass — Temple Grounds spec §12: "optionally lower Garden
+   * music volume slightly" while inside the quiet zone. Deliberately NOT built on top of
+   * changeVolume() above: that function persists to MUSIC_VOLUME_KEY and updates the
+   * `volume` React state (the student's own explicit slider preference) — calling it
+   * automatically on zone entry/exit would silently overwrite that preference, and a
+   * manual slider adjustment made while ducked would get clobbered the moment the student
+   * leaves the zone. duckVolume/restoreVolume instead call the player directly and never
+   * touch localStorage or `volume` state, so the student's real preference is untouched
+   * and always what gets restored to.
+   */
+  function duckVolume(factor: number) {
+    if (!playerRef.current || muted) return
+    playerRef.current.setVolume(Math.round(volume * factor))
+  }
+
+  function restoreVolume() {
+    if (!playerRef.current || muted) return
+    playerRef.current.setVolume(volume)
+  }
+
   function changeVolume(v: number) {
     setVolume(v)
     writeMusicVolumePreference(v)
@@ -260,5 +281,19 @@ export function useGardenMusic(track: GardenTrack) {
     }, 2500)
   }
 
-  return { hostRef, status, isPlaying, muted, volume, autoplayBlocked, play, pause, toggleMute, changeVolume, attemptAutoplay }
+  return {
+    hostRef,
+    status,
+    isPlaying,
+    muted,
+    volume,
+    autoplayBlocked,
+    play,
+    pause,
+    toggleMute,
+    changeVolume,
+    attemptAutoplay,
+    duckVolume,
+    restoreVolume,
+  }
 }

@@ -34,10 +34,18 @@ import { ListeningStoneModal } from './modals/ListeningStoneModal'
 import { PrivateBenchModal } from './modals/PrivateBenchModal'
 import { MindfulnessBellModal } from './modals/MindfulnessBellModal'
 import { GardenQuoteOverlay } from './GardenQuoteOverlay'
+import { GARDEN_WORLD_CHAT_ENABLED } from '../../../features/garden/gardenFeatureFlags'
 import { useGardenControls, useGardenControlMode } from './three/useGardenControls'
 import { useGardenQuality } from './three/useGardenQuality'
 import { useGardenMusic } from './useGardenMusic'
-import { GARDEN_OBJECTS, POOL_POSITION, DANCE_FLOOR_POSITION, pickSpawnPoint, type GardenObjectDef } from './three/gardenLayout'
+import {
+  GARDEN_OBJECTS,
+  POOL_POSITION,
+  DANCE_FLOOR_POSITION,
+  TEMPLE_FORECOURT_CENTER,
+  pickSpawnPoint,
+  type GardenObjectDef,
+} from './three/gardenLayout'
 import { PASSIVE_ZONE_QUOTES, BENCH_QUOTES, randomFrom } from '../../../features/garden/dhammaQuotes'
 import type { GardenMember } from '../../../features/garden/types'
 
@@ -47,22 +55,43 @@ const GardenScene = lazy(() =>
 
 type Panel = 'chat' | 'online' | 'activities' | 'settings' | 'emote' | 'song' | 'kind-word' | 'stone' | 'bench' | 'bell' | null
 
-/** ECHO ธรรมอุทยาน retheme (spec §11) — one physical region per PASSIVE_ZONE_QUOTES key,
- * checked against the player's live x/z on every position update. Generous radii on
- * purpose (a passive quote is a bonus, not a precision trigger) — see dhammaQuotes.ts for
- * why only these two zones are wired (waterfall/pond are one physical area here). */
-const PASSIVE_ZONE_REGIONS: { key: string; center: [number, number]; radius: number }[] = [
-  { key: 'waterfall', center: POOL_POSITION, radius: 4.5 },
-  { key: 'stage', center: DANCE_FLOOR_POSITION, radius: 5 },
+/** One passive region per zone, checked against the player's live x/z on every position
+ * update. Generous radii on purpose (a passive overlay is a bonus, not a precision
+ * trigger). Waterfall/stage pull their copy from the dataset (see dhammaQuotes.ts for why
+ * only these two zones are wired there — waterfall/pond are one physical area here);
+ * Temple Grounds uses fixed ambience copy instead (spec §11) — it is NOT one of the 27
+ * dhammaQuotes.ts reflections, so it is never added to that dataset. */
+const PASSIVE_ZONE_REGIONS: (
+  | { key: string; center: [number, number]; radius: number; source: 'dataset' }
+  | { key: string; center: [number, number]; radius: number; source: 'fixed'; heading: string; text: string }
+)[] = [
+  { key: 'waterfall', center: POOL_POSITION, radius: 4.5, source: 'dataset' },
+  { key: 'stage', center: DANCE_FLOOR_POSITION, radius: 5, source: 'dataset' },
+  {
+    key: 'temple',
+    center: TEMPLE_FORECOURT_CENTER,
+    radius: 4.5,
+    source: 'fixed',
+    heading: '🪷 พื้นที่สงบ',
+    text: 'ลองเดินช้าลงสักนิด\nแล้วอยู่กับสิ่งที่อยู่ตรงหน้า',
+  },
 ]
-/** Spec §11: never more than 3-5 passive zone overlays in one Garden session. */
-const MAX_PASSIVE_ZONE_QUOTES_PER_SESSION = 4
+/** Spec §11: never more than 3-5 passive zone overlays in one Garden session (bumped from
+ * 4 to 5 to make room for Temple Grounds without shrinking the other zones' odds). */
+const MAX_PASSIVE_ZONE_QUOTES_PER_SESSION = 5
 const ZONE_QUOTE_VISIBLE_MS = 5000
 const ZONE_QUOTE_FADE_MS = 350
 /** The designated "ม้านั่งพักใจ" seat ids — every quiet pond bench + waterfall chair (spec
  * §16's "waterfall / lotus pond / large tree" locations, matching this map's actual quiet
  * seating spots) — never every seat in the Garden. */
 const MINDFULNESS_BENCH_PREFIXES = ['pond_bench_', 'waterfall_chair_']
+/** Temple Grounds spec §12: a modest, reversible volume duck while inside the quiet zone —
+ * never silences music, never touches the student's own volume preference. */
+const TEMPLE_MUSIC_DUCK_FACTOR = 0.55
+/** Slightly larger than the passive-overlay radius above so ducking engages a touch before
+ * the overlay text appears, reading as one continuous "entering somewhere quieter" beat
+ * rather than two separate triggers. */
+const TEMPLE_MUSIC_DUCK_RADIUS = 5.5
 
 /** How long a student must stay in the Garden before the daily "เข้า ECHO GARDEN" mission counts. */
 const GARDEN_MISSION_DWELL_MS = 45_000
@@ -99,6 +128,10 @@ export function EchoGardenPage() {
   const seenZonesRef = useRef<Set<string>>(new Set())
   const zoneQuoteShownCountRef = useRef(0)
   const zoneQuoteTimersRef = useRef<number[]>([])
+  /** Whether the player is currently inside the Temple Grounds ducking radius — toggled
+   * only on actual enter/exit transitions (never per-frame-blindly), independent of the
+   * "seen once" passive-overlay cap above so ducking re-engages every time, not just once. */
+  const inTempleZoneRef = useRef(false)
 
   function clearZoneQuoteTimers() {
     for (const id of zoneQuoteTimersRef.current) window.clearTimeout(id)
@@ -226,6 +259,21 @@ export function EchoGardenPage() {
   // any differently; this only reads the same x/z the presence system already gets.
   function handleLocalMove(x: number, y: number, z: number, rotationY: number) {
     reportLocalMove(x, y, z, rotationY)
+
+    // Map-declutter pass (Temple Grounds spec §12) — duck/restore Garden Music only on an
+    // actual enter/exit transition, never per-frame, and never via changeVolume() (that
+    // would persist as the student's own preference — see duckVolume's doc comment).
+    const templeDx = x - TEMPLE_FORECOURT_CENTER[0]
+    const templeDz = z - TEMPLE_FORECOURT_CENTER[1]
+    const inTempleZone = Math.hypot(templeDx, templeDz) <= TEMPLE_MUSIC_DUCK_RADIUS
+    if (inTempleZone && !inTempleZoneRef.current) {
+      inTempleZoneRef.current = true
+      music.duckVolume(TEMPLE_MUSIC_DUCK_FACTOR)
+    } else if (!inTempleZone && inTempleZoneRef.current) {
+      inTempleZoneRef.current = false
+      music.restoreVolume()
+    }
+
     if (zoneQuoteShownCountRef.current >= MAX_PASSIVE_ZONE_QUOTES_PER_SESSION) return
     for (const region of PASSIVE_ZONE_REGIONS) {
       if (seenZonesRef.current.has(region.key)) continue
@@ -234,8 +282,12 @@ export function EchoGardenPage() {
       if (Math.hypot(dx, dz) > region.radius) continue
       seenZonesRef.current.add(region.key)
       zoneQuoteShownCountRef.current += 1
-      const quote = PASSIVE_ZONE_QUOTES[region.key]
-      if (quote) showZoneQuote(quote.title, quote.text)
+      if (region.source === 'dataset') {
+        const quote = PASSIVE_ZONE_QUOTES[region.key]
+        if (quote) showZoneQuote(quote.title, quote.text)
+      } else {
+        showZoneQuote(region.heading, region.text)
+      }
       break
     }
   }
@@ -254,6 +306,10 @@ export function EchoGardenPage() {
     if (MINDFULNESS_BENCH_PREFIXES.some((prefix) => seatId.startsWith(prefix))) {
       const quote = randomFrom(BENCH_QUOTES)
       showZoneQuote('พักตรงนี้สักครู่ก็ได้นะ 🌿', quote.text)
+    } else if (seatId.startsWith('bodhi_seat_')) {
+      // Temple Grounds spec §9 — the exact fixed phrase, never a dhammaQuotes.ts
+      // reflection ("no oversized signboards" here, just this one small on-sit line).
+      showZoneQuote('', 'พักใจตรงนี้สักครู่ก็ได้นะ 🌿')
     }
   }
 
@@ -434,15 +490,17 @@ export function EchoGardenPage() {
                   3D canvas resizes around it (R3F handles the resize automatically)
                   instead of the panel covering any HUD element. Mobile still uses the
                   floating 💬 nav button -> the full-screen `panel === 'chat'` overlay
-                  below, unchanged. */}
-              <GardenWorldChatPanel currentUser={gardenUser} />
+                  below, unchanged. World Chat feature flag: omitted entirely (not just
+                  hidden) when disabled, so the canvas reclaims the width instead of
+                  reserving space for an empty panel. */}
+              {GARDEN_WORLD_CHAT_ENABLED ? <GardenWorldChatPanel currentUser={gardenUser} /> : null}
             </div>
           </Suspense>
         </GardenErrorBoundary>
       )}
 
       {/* Panels shared between 2D and 3D modes */}
-      {panel === 'chat' ? (
+      {panel === 'chat' && GARDEN_WORLD_CHAT_ENABLED ? (
         <div className="fixed inset-0 z-50 flex flex-col bg-cream">
           <div className="flex items-center justify-between border-b border-lavender-100 px-4 py-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
             <p className="font-semibold text-ink">💬 Garden Chat</p>

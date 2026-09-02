@@ -2,6 +2,7 @@ import { limitToLast, onValue, orderByChild, push, query, ref, serverTimestamp, 
 import { firebaseConfigured, getFirebaseAuth, getFirebaseDatabase } from '../../lib/firebase'
 import { GARDEN_CHAT_MAX_LENGTH } from '../../data/gardenPrompts'
 import { GARDEN_CHAT_SEED } from './gardenSeedData'
+import { GARDEN_WORLD_CHAT_ENABLED } from './gardenFeatureFlags'
 import type { GardenChatMessage } from './types'
 
 interface SendTextInput {
@@ -123,6 +124,26 @@ class NoopGardenPublicChatService implements GardenPublicChatService {
   reportMessage(): void {}
 }
 
-export const gardenPublicChatService: GardenPublicChatService = firebaseConfigured
-  ? new FirebaseGardenPublicChatService()
-  : new NoopGardenPublicChatService()
+/**
+ * World Chat feature-flag disabled (see gardenFeatureFlags.ts) — subscribe never opens an
+ * RTDB listener (no `onValue` call at all) and every send silently no-ops, so no new
+ * message can ever reach `gardenChat/*`. Deliberately distinct from NoopGardenPublicChatService
+ * above (that one seeds mock data for local dev without Firebase configured, which would be
+ * the wrong behavior here — a disabled World Chat should show nothing, not fake messages).
+ * Existing `gardenChat/*` RTDB data is never read, written, or deleted by this class.
+ */
+class DisabledGardenPublicChatService implements GardenPublicChatService {
+  subscribe(callback: (messages: GardenChatMessage[]) => void): () => void {
+    callback([])
+    return () => {}
+  }
+  async sendMessage(): Promise<void> {}
+  async sendSticker(): Promise<void> {}
+  reportMessage(): void {}
+}
+
+export const gardenPublicChatService: GardenPublicChatService = !GARDEN_WORLD_CHAT_ENABLED
+  ? new DisabledGardenPublicChatService()
+  : firebaseConfigured
+    ? new FirebaseGardenPublicChatService()
+    : new NoopGardenPublicChatService()

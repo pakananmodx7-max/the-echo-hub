@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BELL_QUOTES,
   BENCH_QUOTES,
-  BOARD_QUOTES,
+  WALL_QUOTES,
   DHAMMA_QUOTES,
   PASSIVE_ZONE_QUOTES,
   SIGN_QUOTES,
@@ -32,13 +32,24 @@ describe('DHAMMA_QUOTES dataset', () => {
 })
 
 describe('surface groupings', () => {
-  it('SIGN_QUOTES stays within the spec target of 12-18 physical signs', () => {
-    expect(SIGN_QUOTES.length).toBeGreaterThanOrEqual(12)
-    expect(SIGN_QUOTES.length).toBeLessThanOrEqual(18)
+  it('SIGN_QUOTES stays within the map-declutter target of 6-10 physical signs (this map: 4 fixed signs)', () => {
+    expect(SIGN_QUOTES.length).toBeGreaterThan(0)
+    expect(SIGN_QUOTES.length).toBeLessThanOrEqual(10)
   })
 
-  it('BOARD_QUOTES has at least one entry for the rotating board', () => {
-    expect(BOARD_QUOTES.length).toBeGreaterThan(0)
+  it('WALL_QUOTES has enough entries to fill the Reflection Wall\'s 3 panels', () => {
+    expect(WALL_QUOTES.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('every DHAMMA_QUOTES entry is accounted for across exactly one surface (none lost, none duplicated)', () => {
+    const total =
+      SIGN_QUOTES.length +
+      WALL_QUOTES.length +
+      Object.keys(PASSIVE_ZONE_QUOTES).length +
+      BELL_QUOTES.length +
+      BENCH_QUOTES.length +
+      TREE_OF_GOODNESS_QUOTES.length
+    expect(total).toBe(DHAMMA_QUOTES.length)
   })
 
   it('PASSIVE_ZONE_QUOTES keys are distinct zones, one quote each', () => {

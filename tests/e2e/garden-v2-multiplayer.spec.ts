@@ -46,6 +46,17 @@ const BASE_URL = process.env.GARDEN_TEST_BASE_URL ?? 'http://127.0.0.1:5173'
 const DB_URL = process.env.GARDEN_TEST_DB_URL ?? `http://127.0.0.1:9000/?ns=${GARDEN_FIREBASE_PROJECT_ID}`
 const RUN_ID = Date.now().toString(36)
 
+// World Chat feature flag (see src/features/garden/gardenFeatureFlags.ts) — the dev server
+// this spec drives must have been started with a matching VITE_ENABLE_GARDEN_WORLD_CHAT
+// value, and this env var must match it, or these assertions will fail against a server
+// that doesn't match what they expect. Defaults to 'false' (disabled), matching the app's
+// own real current default (.env / .env.example both currently ship
+// VITE_ENABLE_GARDEN_WORLD_CHAT=false — World Chat is temporarily paused). To re-run the
+// World Chat ENABLED assertions below, start the dev server with
+// VITE_ENABLE_GARDEN_WORLD_CHAT=true and pass GARDEN_TEST_WORLD_CHAT_ENABLED=true to this
+// spec — see garden-world-chat-disabled tests further down for the disabled-mode coverage.
+const WORLD_CHAT_ENABLED_FOR_TEST = process.env.GARDEN_TEST_WORLD_CHAT_ENABLED === 'true'
+
 let adminApp: App
 
 test.beforeAll(() => {
@@ -177,15 +188,22 @@ test('Garden V2 multiplayer — presence, world chat, emotes', async ({ browser 
     await pageB.getByRole('button', { name: 'ปิด ✕' }).click()
   })
 
-  await test.step('item 15: World Chat still works between two real Garden V2 clients', async () => {
-    const message = `garden-v2-check-${RUN_ID}`
-    // Desktop viewport (1400x900, set in playwright.garden.config.ts) shows the persistent
-    // World Chat panel by default (GardenWorldChatPanel, lg breakpoint); use its composer.
-    const composer = pageA.getByPlaceholder('พิมพ์อะไรบางอย่าง...')
-    await composer.fill(message)
-    await composer.press('Enter')
-    await expect(pageB.getByText(message)).toBeVisible({ timeout: 15_000 })
-  })
+  // World Chat is currently disabled by default (VITE_ENABLE_GARDEN_WORLD_CHAT=false) — see
+  // the WORLD_CHAT_ENABLED_FOR_TEST doc comment above. This step is RETAINED (not deleted)
+  // for when the flag is re-enabled; it only actually runs when the test env var matches an
+  // enabled dev server. Disabled-mode coverage lives in the 'World Chat feature flag'
+  // describe block further down in this file.
+  if (WORLD_CHAT_ENABLED_FOR_TEST) {
+    await test.step('item 15: World Chat still works between two real Garden V2 clients', async () => {
+      const message = `garden-v2-check-${RUN_ID}`
+      // Desktop viewport (1400x900, set in playwright.garden.config.ts) shows the persistent
+      // World Chat panel by default (GardenWorldChatPanel, lg breakpoint); use its composer.
+      const composer = pageA.getByPlaceholder('พิมพ์อะไรบางอย่าง...')
+      await composer.fill(message)
+      await composer.press('Enter')
+      await expect(pageB.getByText(message)).toBeVisible({ timeout: 15_000 })
+    })
+  }
 
   let publicIdA = ''
   await test.step("items 9/10: A performs an emote (wave) — traced end-to-end: write succeeds, RTDB holds it, B's app state applies it", async () => {
@@ -288,4 +306,114 @@ test('Garden V2 multiplayer — presence, world chat, emotes', async ({ browser 
 
   await ctxA.close()
   await ctxB.close()
+})
+
+/**
+ * World Chat feature flag coverage (see src/features/garden/gardenFeatureFlags.ts) — added
+ * alongside the map-decluttering/Temple Grounds task that also temporarily disabled World
+ * Chat. Two things to prove, both against the actual running app (not a mock):
+ *   1. When disabled, every World Chat surface is genuinely gone from the DOM — not just
+ *      CSS-hidden — so it can never be tapped/clicked into a broken state.
+ *   2. Private Chat (a completely separate system: chatRequests/chatRooms in Firestore, not
+ *      gardenChat in RTDB) is untouched and still fully works end-to-end: request → accept
+ *      → auto-navigate → send → receive.
+ */
+test.describe('World Chat feature flag', () => {
+  test('World Chat UI is absent when the feature flag is disabled', async ({ browser }) => {
+    test.skip(WORLD_CHAT_ENABLED_FOR_TEST, 'This run has World Chat enabled — disabled-mode absence checks do not apply.')
+
+    const ctx = await browser.newContext()
+    const page = await ctx.newPage()
+    const codename = await signUpAndEnterGarden(page, 'A')
+
+    // Desktop persistent panel (GardenWorldChatPanel) must not exist at all — not merely
+    // hidden by the lg breakpoint, since this viewport (1400x900, playwright.garden.config.ts)
+    // is exactly the width that WOULD show it if the flag were on.
+    await expect(page.getByText('🌍 แชทโลก')).toHaveCount(0)
+    await expect(page.getByPlaceholder('พิมพ์อะไรบางอย่าง...')).toHaveCount(0)
+
+    // The mobile floating "💬 Chat" nav button must be dropped from the DOM entirely (see
+    // GardenHUD.tsx's NAV_BUTTONS filter) — checked here at desktop width specifically
+    // because that is the stronger claim: even where it would normally sit alongside the
+    // other nav buttons, it is gone, not just responsive-hidden.
+    await expect(page.getByRole('button', { name: 'Chat' })).toHaveCount(0)
+
+    // Opening the Online panel (unrelated Garden UI) must still work normally — proves the
+    // rest of the Garden HUD is unaffected by the flag, not just "chat is gone". The panel
+    // only lists OTHER members (there is only one account in this test, so codename itself
+    // never appears there) — its close button is what proves the panel actually opened.
+    await page.getByRole('button', { name: 'Online' }).click()
+    await expect(page.getByRole('button', { name: 'ปิด ✕' })).toBeVisible({ timeout: 10_000 })
+    expect(codename.length).toBeGreaterThan(0)
+
+    await ctx.close()
+  })
+
+  test('Private Chat still works end-to-end while World Chat is disabled', async ({ browser }) => {
+    // Heavier than the other tests here (two concurrent signups + 4 sequential real
+    // request/accept/navigate/send steps) — the config's default 180s per-test budget can
+    // run out under real machine contention even when every individual step is healthy, so
+    // this gets real headroom rather than a tight one (matches the same reasoning
+    // signUpAndEnterGarden's own comments already give for its generous per-step timeouts).
+    test.setTimeout(300_000)
+
+    const ctxA = await browser.newContext()
+    const ctxB = await browser.newContext()
+    const pageA = await ctxA.newPage()
+    const pageB = await ctxB.newPage()
+
+    const [codenameA, codenameB] = await Promise.all([
+      signUpAndEnterGarden(pageA, 'A'),
+      signUpAndEnterGarden(pageB, 'B'),
+    ])
+
+    await test.step('A sends B a private chat request from the Garden Online panel', async () => {
+      await pageA.getByRole('button', { name: 'Online' }).click()
+      // .first() guards against a transient duplicate row during a fast presence-list
+      // re-render (the same defensive pattern used for codename matches elsewhere in this
+      // file) — there is only ever one real B in this test.
+      await pageA.getByRole('button', { name: `ขอคุยส่วนตัวกับ ${codenameB}` }).first().click()
+      await pageA.getByRole('button', { name: 'ส่งคำขอ 🤍' }).click()
+      await expect(pageA.getByText('ส่งคำขอแล้ว ✓')).toBeVisible({ timeout: 15_000 })
+      // Exact match required — Playwright's default substring match on accessible name
+      // would otherwise also match "ปิด ✕" (Online panel) and "แตะเพื่อเปิดเพลง" (the
+      // music autoplay-blocked button contains "ปิด" as a substring of "เปิด").
+      await pageA.getByRole('button', { name: 'ปิด', exact: true }).click()
+    })
+
+    let roomUrlB = ''
+    await test.step('B accepts the incoming request and lands in the private chat room', async () => {
+      // IncomingChatRequestModal is mounted globally in HubLayout — B does not need to
+      // leave the Garden to see it, matching real behavior.
+      await expect(pageB.getByText(`${codenameA} อยากคุยกับคุณ`)).toBeVisible({ timeout: 15_000 })
+      await pageB.getByRole('button', { name: 'รับคำขอ 🤍' }).click()
+      await pageB.waitForURL(/\/hub\/talk\/chat\//, { timeout: 15_000 })
+      roomUrlB = pageB.url()
+    })
+
+    await test.step('A auto-navigates to the same room once accepted (SentRequestWatcher)', async () => {
+      await pageA.waitForURL(/\/hub\/talk\/chat\//, { timeout: 15_000 })
+      expect(pageA.url().split('/chat/')[1]).toBe(roomUrlB.split('/chat/')[1])
+    })
+
+    // PrivateChatPage shows a one-time "💜 ก่อนเริ่มบทสนทนา" intro overlay the first time
+    // each device opens a given room (a per-room localStorage ack, so both A and B's
+    // separate browser contexts see it independently) — the message composer sits behind
+    // it, so both pages need this dismissed before either can send/receive.
+    await test.step('both dismiss the one-time "before we begin" room intro', async () => {
+      await pageA.getByRole('button', { name: 'เข้าใจแล้ว — เริ่มคุยกัน' }).click()
+      await pageB.getByRole('button', { name: 'เข้าใจแล้ว — เริ่มคุยกัน' }).click()
+    })
+
+    await test.step('A sends a message; B receives it in real time', async () => {
+      const message = `private-chat-check-${RUN_ID}`
+      const composer = pageA.getByPlaceholder('พิมพ์ข้อความ...')
+      await composer.fill(message)
+      await composer.press('Enter')
+      await expect(pageB.getByText(message)).toBeVisible({ timeout: 15_000 })
+    })
+
+    await ctxA.close()
+    await ctxB.close()
+  })
 })

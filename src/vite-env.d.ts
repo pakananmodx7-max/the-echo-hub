@@ -11,6 +11,8 @@ interface ImportMetaEnv {
   readonly VITE_USE_FIREBASE_EMULATORS: string
   /** Opt-in verbose console tracing for the Garden V2 emote write/subscribe/apply path — see gardenEmoteService.ts. Unset/omitted in normal dev and production. */
   readonly VITE_GARDEN_DEBUG_EMOTES?: string
+  /** Garden World Chat feature flag — see gardenFeatureFlags.ts. Unset/anything other than "true" means disabled. */
+  readonly VITE_ENABLE_GARDEN_WORLD_CHAT?: string
 }
 
 interface ImportMeta {

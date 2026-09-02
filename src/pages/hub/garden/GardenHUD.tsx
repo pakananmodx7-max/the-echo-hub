@@ -1,5 +1,6 @@
 import { GardenJoystick } from './GardenJoystick'
 import { GardenMusicControl } from './GardenMusicControl'
+import { GARDEN_WORLD_CHAT_ENABLED } from '../../../features/garden/gardenFeatureFlags'
 import type { GardenControlMode, GardenControls } from './three/useGardenControls'
 import type { GardenTrack } from '../../../data/gardenTracks'
 import type { GardenMusicStatus } from './useGardenMusic'
@@ -39,7 +40,7 @@ interface GardenHUDProps {
   }
 }
 
-const NAV_BUTTONS: {
+const ALL_NAV_BUTTONS: {
   key: 'onOpenChat' | 'onOpenActivities' | 'onOpenOnline' | 'onOpenEmotes' | 'onOpenSettings' | 'onExit'
   icon: string
   label: string
@@ -51,6 +52,10 @@ const NAV_BUTTONS: {
   { key: 'onOpenSettings', icon: '⚙️', label: 'Settings' },
   { key: 'onExit', icon: '🚪', label: 'ออกจากสวน' },
 ]
+// World Chat feature flag (spec: "hide World Chat mobile button") — the button is dropped
+// from the row entirely when disabled, not just visually hidden, so it can never be tapped
+// into a panel with nothing behind it.
+const NAV_BUTTONS = GARDEN_WORLD_CHAT_ENABLED ? ALL_NAV_BUTTONS : ALL_NAV_BUTTONS.filter((b) => b.key !== 'onOpenChat')
 
 export function GardenHUD(props: GardenHUDProps) {
   const { controls, controlMode, memberCount, interaction, onInteract, onRecenterCamera, music } = props

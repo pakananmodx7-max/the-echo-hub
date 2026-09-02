@@ -1,6 +1,6 @@
 /**
  * ECHO ธรรมอุทยาน — the ONE centralized source of every reflection shown anywhere in the
- * Garden (physical signs, the central rotating board, passive zone overlays, the
+ * Garden (physical signs, the "🪨 กำแพงข้อคิด" Reflection Wall, passive zone overlays, the
  * Mindfulness Bell, mindfulness benches, and the Tree of Goodness). Nothing scatters a
  * quote string directly into a component — every surface reads from here.
  *
@@ -20,9 +20,16 @@ export const DHAMMA_CATEGORY_LABEL: Record<DhammaCategory, string> = {
   learning: '🧠 การเรียนรู้จากปัญหา',
 }
 
-/** Where a quote is used — a single quote may be reused across surfaces (e.g. a 'sign'
- * quote can also appear on the rotating 'board'); this only marks its PRIMARY placement. */
-export type DhammaPlacement = 'sign' | 'board' | 'passive' | 'bell' | 'bench' | 'tree'
+/** Where a quote is used — this only marks its PRIMARY placement.
+ *
+ * Map-declutter pass (see gardenLayout.ts's "Temple Grounds / Reflection Wall" doc block):
+ * 'board' was renamed to 'wall' and absorbed most of the old physical `sign` positions —
+ * the Garden used to have 13 individually-standing signs (several lined along the main
+ * walking paths), which read as a "sign trail" rather than a calm garden. Only 4 signs
+ * remain fixed in the world (2 by the pavilion, 1 by the waterfall, 1 by the pond); every
+ * other reflection that used to have its own standing sign now rotates through the new
+ * "🪨 กำแพงข้อคิด" Reflection Wall instead — no quote text was deleted, only relocated. */
+export type DhammaPlacement = 'sign' | 'wall' | 'passive' | 'bell' | 'bench' | 'tree'
 
 export interface DhammaQuote {
   id: string
@@ -60,9 +67,10 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'presence',
     title: 'ข้อคิดเตือนใจ',
     text: 'ไม่ต้องไปหาความสุข ความสมบูรณ์แบบที่ไหนไกล\nแค่ใจเราสงบ นั่นแหละคือชีวิตที่ดีแล้ว',
+    // Map-declutter pass: was a standing sign right on the entrance path spine — moved to
+    // the Reflection Wall so the entrance walk stays clear (trees/grass/lanterns only).
     zone: 'entrance',
-    placement: 'sign',
-    position: [0, 8.0],
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -70,9 +78,9 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'release',
     title: 'ข้อคิดเตือนใจ',
     text: 'การไม่อยากได้ ไม่อยากมี ไม่อยากเป็นเจ้าของต่อสิ่งใด ๆ\nสิ่งนั้นอาจช่วยให้ใจเราเป็นสุขขึ้น',
+    // Map-declutter pass: was a standing sign on the entrance path spine — moved to the wall.
     zone: 'path',
-    placement: 'sign',
-    position: [0.3, 6.0],
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -80,9 +88,9 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'giving',
     title: 'ข้อคิดเตือนใจ',
     text: 'ไม่ว่าคุณจะเป็นใคร\nถ้าคุณเริ่มเป็นผู้ให้\nคุณก็สามารถเป็นคนที่ยิ่งใหญ่ในสายตาของผู้อื่นได้',
+    // Map-declutter pass: was a standing sign on the entrance path spine — moved to the wall.
     zone: 'path',
-    placement: 'sign',
-    position: [-0.3, 4.0],
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -90,9 +98,9 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'learning',
     title: 'ธรรมะเพื่อการใช้ชีวิต',
     text: 'อย่ามองว่าทุกปัญหาที่เข้ามาเป็นเรื่องทุกข์\nลองมองว่าเป็นสิ่งธรรมดาที่ชีวิตต้องพบเจอ',
+    // Map-declutter pass: was a standing sign near the Plaza — moved to the wall.
     zone: 'plaza',
-    placement: 'sign',
-    position: [0.9, -1.6],
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -139,7 +147,7 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     title: 'ธรรมะเพื่อการใช้ชีวิต',
     text: 'พึงชนะผู้น้อยด้วยการให้\nพึงชนะผู้ใหญ่ด้วยความอ่อนโยน',
     zone: 'plaza',
-    placement: 'board',
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -157,7 +165,7 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     title: 'ข้อคิดเตือนใจ',
     text: 'ไม่มีใครกำหนดชีวิตเรา\nได้ดีกว่าตัวเราเอง',
     zone: 'plaza',
-    placement: 'board',
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -165,9 +173,10 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'presence',
     title: 'ธรรมะเพื่อการใช้ชีวิต',
     text: 'อดีตล่วงไปแล้ว\nอนาคตก็ยังมาไม่ถึง\nจงทำปัจจุบันให้ดีที่สุด',
+    // Map-declutter pass: was a standing sign beside the central tree — moved to the wall
+    // (the central tree keeps its own clear, unlabeled sightline now).
     zone: 'central-tree',
-    placement: 'sign',
-    position: [3.0, 2.6],
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -176,7 +185,7 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     title: 'ข้อคิดเตือนใจ',
     text: 'อดีตคือไฟฉาย\nที่ช่วยส่องทางให้เรา',
     zone: 'plaza',
-    placement: 'board',
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -215,9 +224,10 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'giving',
     title: 'ข้อคิดเตือนใจ',
     text: 'ความสำเร็จอยู่ในมือเรา\nอยู่ที่เราจะลงมือทำหรือไม่',
+    // Map-declutter pass: was a standing sign right beside the Plaza→Stage path — moved to
+    // the wall so the walk toward ลานเสียงแห่งใจ stays clear.
     zone: 'stage',
-    placement: 'sign',
-    position: [-1.0, -9.2],
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -225,9 +235,9 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'presence',
     title: 'ข้อคิดเตือนใจ',
     text: 'มุมที่ดีอยู่ที่เรามอง\nใจที่ดีอยู่ที่เราเลือก',
+    // Map-declutter pass: was a standing sign right beside the stage — moved to the wall.
     zone: 'stage',
-    placement: 'sign',
-    position: [1.0, -12.0],
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -244,6 +254,8 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'release',
     title: 'ธรรมะเพื่อการใช้ชีวิต',
     text: 'ยินดีในสิ่งที่ตนได้\nพอใจในสิ่งที่ตนมี',
+    // Map-declutter pass: kept as the ONE subtle waterfall sign (spec: "waterfall -> 1
+    // subtle quote area") — q21 (the second waterfall sign) moved to the wall instead.
     zone: 'waterfall',
     placement: 'sign',
     position: [-7.8, -2.6],
@@ -254,9 +266,9 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'presence',
     title: 'ข้อคิดเตือนใจ',
     text: 'ไม่มีใครให้โอกาสชีวิตเรา\nได้ดีเท่าตัวเราเอง',
+    // Map-declutter pass: was the second waterfall sign — moved to the wall (see q20).
     zone: 'waterfall',
-    placement: 'sign',
-    position: [-7.6, 0.6],
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -264,6 +276,8 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'giving',
     title: 'ข้อคิดเตือนใจ',
     text: 'เมื่อมีจงให้\nหากอยากได้จงเริ่มจากการทำก่อน',
+    // Map-declutter pass: kept as the ONE subtle pond sign (spec: "lotus pond -> 1 subtle
+    // quote area") — q23 (the second pond sign) moved to the wall instead.
     zone: 'pond',
     placement: 'sign',
     position: [-6.9, 2.6],
@@ -274,9 +288,9 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     category: 'release',
     title: 'ธรรมะเพื่อการใช้ชีวิต',
     text: 'ยึดมากเป็นทุกข์มาก\nยึดน้อยเป็นทุกข์น้อย\nปล่อยได้ ใจก็เบาลง',
+    // Map-declutter pass: was the second pond sign — moved to the wall (see q22).
     zone: 'pond',
-    placement: 'sign',
-    position: [-6.3, -3.2],
+    placement: 'wall',
     sourceType: 'reflection',
   },
   {
@@ -312,7 +326,7 @@ export const DHAMMA_QUOTES: DhammaQuote[] = [
     title: 'ธรรมะเพื่อการใช้ชีวิต',
     text: 'ความไม่เบียดเบียนกัน\nเป็นพื้นฐานสำคัญของการอยู่ร่วมกัน',
     zone: 'plaza',
-    placement: 'board',
+    placement: 'wall',
     sourceType: 'reflection',
   },
 ]
@@ -321,13 +335,18 @@ export const DHAMMA_QUOTES_BY_ID: Record<string, DhammaQuote> = Object.fromEntri
   DHAMMA_QUOTES.map((q) => [q.id, q]),
 )
 
-/** Every physical, always-visible sign in the Garden (spec §6/§7: no click required, the
- * quote must already be readable on approach). Target count is 12-18 — currently 13. */
+/** Every physical, always-visible sign in the Garden — deliberately trimmed by the map-
+ * declutter pass from 13 (several lined along the main walking paths) down to 4: 2 by the
+ * pavilion, 1 by the waterfall, 1 by the pond (spec: "6-10 signs maximum" total across the
+ * whole map, counting the Reflection Wall's own panels — see WALL_QUOTES below). No main
+ * walking path carries a standing sign anymore. */
 export const SIGN_QUOTES: DhammaQuote[] = DHAMMA_QUOTES.filter((q) => q.placement === 'sign' && q.position)
 
-/** Rotates on the central "ข้อคิดวันนี้" board near the Plaza — no click required, gentle
- * crossfade, ~30-60s interval (see GardenDhammaSigns.tsx). */
-export const BOARD_QUOTES: DhammaQuote[] = DHAMMA_QUOTES.filter((q) => q.placement === 'board')
+/** Rotates through the "🪨 กำแพงข้อคิด" Reflection Wall (see GardenDhammaSigns.tsx) — the
+ * primary quote surface now, replacing both the old standalone central board AND the 9
+ * relocated path/plaza/central-tree/stage signs. Shows only a few (3) at a time, cycling
+ * slowly, never all 13 at once. */
+export const WALL_QUOTES: DhammaQuote[] = DHAMMA_QUOTES.filter((q) => q.placement === 'wall')
 
 /** Shown once per zone per Garden session, the FIRST time a player enters that zone (spec
  * §11) — capped at 3-5 overlays/session by the caller, never by this list's length. */
