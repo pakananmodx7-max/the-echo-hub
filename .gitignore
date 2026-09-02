@@ -30,6 +30,11 @@ serviceAccountKey*.json
 *service-account*.json
 *-firebase-adminsdk-*.json
 
+# Playwright test artifacts (screenshots/traces from local e2e runs)
+test-results/
+playwright-report/
+blob-report/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
