@@ -6,97 +6,75 @@ import { createWoodTexture } from './gardenTextures'
 import {
   DANCE_FLOOR_POSITION,
   DANCE_FLOOR_RADIUS,
-  DJ_BOOTH_POSITION,
-  SPEAKER_POSITIONS,
+  PLAZA_BENCH_SPOTS,
+  PLAZA_TREE_SPOTS,
   STAGE_HALF_DEPTH,
   STAGE_HALF_WIDTH,
   STAGE_HEIGHT,
   STAGE_POSITION,
 } from './gardenLayout'
-import { GardenCharacter } from './GardenCharacter'
-import { DEFAULT_GARDEN_AVATAR_CONFIG } from '../../../../data/gardenAvatarOptions'
 
 const STAGE_FLOOR = '#a8794f'
 const STAGE_TRIM = '#8a6a4f'
-const SPEAKER_BODY = '#4a4038'
 // ECHO ธรรมอุทยาน retheme (spec §19: "avoid nightclub look, excessive neon") — warm
 // amber/gold instead of the previous bright pink, reading as a community-pavilion string
 // light rather than a club accent. Same fixed emissive-strip technique, just retinted.
 const ACCENT = '#f0b86a'
 const DANCE_FLOOR_COLOR = '#8a6a4f'
+const PLAZA_TREE_GREENS = ['#7bb894', '#8fd6b4']
 
-const DJ_CONFIG = {
-  ...DEFAULT_GARDEN_AVATAR_CONFIG,
-  topStyle: 'hoodie' as const,
-  topColor: '#5a4b78',
-  accessory: 'headphones' as const,
-}
-
-/** Small, self-contained head-bob/hand-move loop for the DJ NPC — same sinusoidal
- * technique as GardenCharacter's own walk-bob, no beat detection, loops naturally per
- * spec (req. #20) whether or not Garden Music happens to be playing. */
-function DjNpc() {
-  const headRef = useRef<THREE.Group>(null)
-  const leftHandRef = useRef<THREE.Mesh>(null)
-  const rightHandRef = useRef<THREE.Mesh>(null)
-
-  useFrame((state) => {
-    const t = state.clock.elapsedTime
-    if (headRef.current) {
-      headRef.current.rotation.z = Math.sin(t * 2.2) * 0.08
-      headRef.current.position.y = 1.5 + Math.sin(t * 2.2) * 0.02
-    }
-    if (leftHandRef.current) leftHandRef.current.position.y = 0.62 + Math.sin(t * 2.4) * 0.05
-    if (rightHandRef.current) rightHandRef.current.position.y = 0.62 + Math.sin(t * 2.4 + Math.PI * 0.6) * 0.05
-  })
-
+/** A couple of restrained benches around the plaza's edge — real sittable solo seats
+ * (see `plaza_bench_*` in SEATS, gardenLayout.ts), same visual language as QuietBenches
+ * in GardenLandmarks.tsx so furniture reads consistently across the garden. */
+function PlazaBenches() {
+  const [sx, sz] = STAGE_POSITION
   return (
-    <group position={[DJ_BOOTH_POSITION[0], STAGE_HEIGHT, DJ_BOOTH_POSITION[1]]}>
-      {/* Podium */}
-      <mesh position={[0, 0.35, 0]}>
-        <boxGeometry args={[1.1, 0.7, 0.5]} />
-        <meshStandardMaterial color={STAGE_TRIM} roughness={0.75} />
-      </mesh>
-      <mesh position={[0, 0.71, 0]}>
-        <boxGeometry args={[1.15, 0.06, 0.55]} />
-        <meshStandardMaterial color="#2e2740" roughness={0.6} metalness={0.35} />
-      </mesh>
-      {/* Small mixer glow — a fixed emissive accent rather than a real light source */}
-      <mesh position={[0, 0.75, 0]}>
-        <boxGeometry args={[0.4, 0.03, 0.2]} />
-        <meshStandardMaterial color={ACCENT} emissive={ACCENT} emissiveIntensity={0.9} />
-      </mesh>
-      <group ref={headRef} position={[0, 1.5, -0.35]}>
-        <GardenCharacter config={DJ_CONFIG} />
-      </group>
-      <mesh ref={leftHandRef} position={[-0.22, 0.62, 0.1]}>
-        <sphereGeometry args={[0.06, 8, 8]} />
-        <meshStandardMaterial color="#e8c19d" roughness={0.8} />
-      </mesh>
-      <mesh ref={rightHandRef} position={[0.22, 0.62, 0.1]}>
-        <sphereGeometry args={[0.06, 8, 8]} />
-        <meshStandardMaterial color="#e8c19d" roughness={0.8} />
-      </mesh>
-    </group>
+    <>
+      {PLAZA_BENCH_SPOTS.map(([x, z], i) => {
+        const facing = Math.atan2(sx - x, sz - z)
+        return (
+          <group key={i} position={[x, 0, z]} rotation={[0, facing, 0]}>
+            <mesh position={[0, 0.28, 0]}>
+              <boxGeometry args={[1.2, 0.12, 0.48]} />
+              <meshStandardMaterial color="#c98a5f" roughness={0.8} />
+            </mesh>
+            <mesh position={[-0.5, 0.14, 0]}>
+              <boxGeometry args={[0.11, 0.28, 0.48]} />
+              <meshStandardMaterial color="#8a6a4f" roughness={0.8} />
+            </mesh>
+            <mesh position={[0.5, 0.14, 0]}>
+              <boxGeometry args={[0.11, 0.28, 0.48]} />
+              <meshStandardMaterial color="#8a6a4f" roughness={0.8} />
+            </mesh>
+          </group>
+        )
+      })}
+    </>
   )
 }
 
-function Speaker({ position }: { position: [number, number] }) {
+/** A couple of small trees framing the plaza's edge — smaller/simpler than CentralTree
+ * (this is background landscaping, not a landmark), same primitive-icosahedron technique. */
+function PlazaTrees() {
   return (
-    <group position={[position[0], STAGE_HEIGHT, position[1]]}>
-      <mesh position={[0, 0.55, 0]} castShadow>
-        <boxGeometry args={[0.5, 1.1, 0.45]} />
-        <meshStandardMaterial color={SPEAKER_BODY} roughness={0.6} metalness={0.15} />
-      </mesh>
-      <mesh position={[0, 0.75, 0.24]}>
-        <circleGeometry args={[0.15, 14]} />
-        <meshStandardMaterial color="#1c1826" roughness={0.5} />
-      </mesh>
-      <mesh position={[0, 0.4, 0.24]}>
-        <circleGeometry args={[0.11, 14]} />
-        <meshStandardMaterial color="#1c1826" roughness={0.5} />
-      </mesh>
-    </group>
+    <>
+      {PLAZA_TREE_SPOTS.map(([x, z], i) => (
+        <group key={i} position={[x, 0, z]}>
+          <mesh position={[0, 0.5, 0]} castShadow>
+            <cylinderGeometry args={[0.16, 0.22, 1.0, 8]} />
+            <meshStandardMaterial color="#7a5c44" roughness={0.9} />
+          </mesh>
+          <mesh position={[0, 1.35, 0]} rotation={[i * 0.5, i * 0.9, 0]} castShadow>
+            <icosahedronGeometry args={[0.65, 1]} />
+            <meshStandardMaterial color={PLAZA_TREE_GREENS[i % PLAZA_TREE_GREENS.length]} roughness={0.85} />
+          </mesh>
+          <mesh position={[0.35, 1.15, 0.3]} rotation={[i * 0.3, i * 1.1, 0]} castShadow>
+            <icosahedronGeometry args={[0.4, 1]} />
+            <meshStandardMaterial color={PLAZA_TREE_GREENS[(i + 1) % PLAZA_TREE_GREENS.length]} roughness={0.85} />
+          </mesh>
+        </group>
+      ))}
+    </>
   )
 }
 
@@ -127,14 +105,14 @@ function DanceFloor() {
 }
 
 /**
- * "🎶 ลานเสียงแห่งใจ" (Zone I/J, ECHO ธรรมอุทยาน retheme of the former "Stage/DJ Booth") —
- * a warm wooden community performance pavilion, not a nightclub: raised platform, steps,
- * two speakers, a DJ booth with a looping procedural NPC (visually framed as "Sound of
- * ECHO / ผู้เปิดเพลง" in the HUD copy around it). All multiplayer/dance/emote/music systems
- * are byte-for-byte unchanged — this file only retints materials (warm amber accent
- * instead of pink, earthy dance-floor tone instead of violet) and updates comments/labels.
- * Its footprint is solid collision (see STAGE_OBSTACLES in gardenLayout.ts) — players walk
- * around it, not onto it, since this engine has no per-object avatar elevation.
+ * "🌿 ลานกิจกรรม" (Activity Plaza, Zone I/K) — a later task removed the DJ NPC, DJ booth,
+ * and speakers entirely: an open wooden platform with steps and a couple of restrained
+ * benches/trees around its edge, no performer or equipment on it. Anyone can walk up,
+ * sit, or dance/emote here — nothing requires a DJ or stage. All multiplayer/dance/emote/
+ * music systems are byte-for-byte unchanged (this component keeps its `GardenStage` name/
+ * export to avoid import churn in GardenScene.tsx). Its footprint is solid collision (see
+ * STAGE_OBSTACLES in gardenLayout.ts) — players walk around it, not onto it, since this
+ * engine has no per-object avatar elevation.
  */
 export const GardenStage = memo(function GardenStage({ castShadow }: { castShadow: boolean }) {
   const wood = useMemo(() => createWoodTexture(), [])
@@ -166,10 +144,8 @@ export const GardenStage = memo(function GardenStage({ castShadow }: { castShado
         <boxGeometry args={[STAGE_HALF_WIDTH * 1.9, 0.04, 0.04]} />
         <meshStandardMaterial color={ACCENT} emissive={ACCENT} emissiveIntensity={0.7} />
       </mesh>
-      {SPEAKER_POSITIONS.map((p, i) => (
-        <Speaker key={i} position={p} />
-      ))}
-      <DjNpc />
+      <PlazaBenches />
+      <PlazaTrees />
     </group>
   )
 })

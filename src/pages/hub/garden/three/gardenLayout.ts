@@ -18,7 +18,7 @@ export interface GardenObjectDef {
 // Garden V2: footprint grew again, from 10.5 to 16 (~2.3x the walkable area, roughly the
 // same growth ratio as the prior "Map Improvement phase" below) — every existing
 // interactive object/table/landmark keeps its id/position, the extra room is used
-// entirely for the new south Stage/DJ/Dance Floor cluster (Zone I/J/K) plus a reserved,
+// entirely for the new south Stage/Dance Floor cluster (Zone I/K) plus a reserved,
 // still-empty Zone L lawn. See the zone comments for the full shape.
 //
 // (Map Improvement phase, for history: grew from a 7-unit half-width square to 10.5.)
@@ -53,9 +53,11 @@ export const GARDEN_FOG_FAR = 46
  * behavior change, only repositioned.
  * Zone H — the old south path terminus around [0, -9.3] — now the entrance to the Zone
  * I/J/K cluster below (the "future lawn" itself moved further out to the new Zone L).
- * Zone I — Performance Stage, Zone J — DJ Booth (on the stage), Zone K — Dance Floor (the
- * open area just in front of the stage) — see STAGE_POSITION / DJ_BOOTH_POSITION /
- * DANCE_FLOOR_POSITION below. The stage is a solid raised landmark you walk up to (like
+ * Zone I — 🌿 ลานกิจกรรม (Activity Plaza, formerly "Performance Stage/DJ Booth" — the DJ
+ * NPC/booth/speakers were removed entirely per a later task; this stays an open wooden
+ * platform anyone can gather, sit, or dance on, with no performer/equipment on it), Zone K
+ * — Dance Floor (the open area just in front of the platform) — see STAGE_POSITION /
+ * DANCE_FLOOR_POSITION below. The platform is a solid raised landmark you walk up to (like
  * the pavilion or central tree), not a multi-level walkable surface — this engine has no
  * per-object elevation for the avatar, and adding one would be exactly the kind of
  * movement-system rewrite the spec says not to do.
@@ -89,8 +91,11 @@ export const GARDEN_FOG_FAR = 46
  *   มุมทบทวนตนเอง      -> the quiet/mindfulness benches (QUIET_BENCH_SPOTS/WATERFALL_CHAIR_
  *                        SPOTS) — conceptually linked to Daily Journal, see EchoGardenPage.
  *   ต้นไม้แห่งความดี    -> the Tree of Goodness landmark, see TREE_OF_GOODNESS_POSITION.
- *   ลานเสียงแห่งใจ      -> the existing Stage/DJ area (Zone I/J/K), retextured warmer in
- *                        GardenStage.tsx — same multiplayer stage/dance/DJ systems, unchanged.
+ *   ลานเสียงแห่งใจ      -> renamed "🌿 ลานกิจกรรม" (Activity Plaza) once the DJ was removed
+ *                        (Zone I/K) — GardenStage.tsx keeps the same name/export for now to
+ *                        avoid unnecessary import churn; dance/emote/multiplayer systems
+ *                        on it are byte-for-byte unchanged, only the DJ NPC/booth/speakers
+ *                        are gone and a few benches/trees were added around the edge.
  *   เขตสงบ            -> Zone M, ECHO Temple Grounds, see above.
  */
 export const GARDEN_OBJECTS: GardenObjectDef[] = [
@@ -127,20 +132,29 @@ export function pickSpawnPoint(): [number, number] {
   return [point[0], point[1]]
 }
 
-// --- Stage / DJ / Dance Floor (Zone I/J/K) --------------------------------------------
+// --- 🌿 ลานกิจกรรม / Activity Plaza (Zone I/K, formerly Stage/DJ Booth) ------------------
+// A later task removed the DJ NPC, DJ booth, and speakers entirely (GardenStage.tsx no
+// longer renders any of them) — DJ_BOOTH_POSITION and SPEAKER_POSITIONS/SPEAKER_OBSTACLES
+// were deleted along with them since nothing else referenced those exclusively-DJ spots.
+// The open wooden platform, its steps, and the dance-floor proximity zone are untouched —
+// this stays a plain open plaza anyone can walk up to, sit at, or dance/emote on.
 
-/** Center of the raised stage platform. */
+/** Center of the raised open-plaza platform. */
 export const STAGE_POSITION: [number, number] = [0, -13]
 export const STAGE_HALF_WIDTH = 3
 export const STAGE_HALF_DEPTH = 1.6
 export const STAGE_HEIGHT = 0.45
-/** Sits on the back of the stage. */
-export const DJ_BOOTH_POSITION: [number, number] = [0, -14.1]
-export const SPEAKER_POSITIONS: [number, number][] = [
-  [-2.7, -11.9],
-  [2.7, -11.9],
+/** A couple of restrained benches + trees around the platform's edge (spec: "do not fill
+ * the empty DJ area with lots of new props") — computed clear of every obstacle below. */
+export const PLAZA_BENCH_SPOTS: [number, number][] = [
+  [-4.6, -13.3],
+  [4.6, -13.3],
 ]
-/** The open area right in front of the stage — a proximity zone, not an obstacle. */
+export const PLAZA_TREE_SPOTS: [number, number][] = [
+  [-3.6, -15.6],
+  [3.6, -15.6],
+]
+/** The open area right in front of the platform — a proximity zone, not an obstacle. */
 export const DANCE_FLOOR_POSITION: [number, number] = [0, -9.8]
 export const DANCE_FLOOR_RADIUS = 2.4
 
@@ -182,6 +196,10 @@ export const LANTERN_SPOTS: [number, number][] = [
   [-8.0, -13.0],
   [-11.0, -13.0],
   [-9.5, -10.2],
+  // 🌿 ลานกิจกรรม (Activity Plaza) — a couple of subtle warm lamps flanking the platform's
+  // front steps, added when the DJ booth/speakers were removed (spec: keep it warm, not empty).
+  [-2.5, -10.6],
+  [2.5, -10.6],
 ]
 
 // --- Temple Grounds (map-declutter pass — "🛕 เขตสงบ / ECHO Temple Grounds") ------------
@@ -366,7 +384,8 @@ const STAGE_OBSTACLES: DecorObstacle[] = [
   { position: [STAGE_POSITION[0], STAGE_POSITION[1]], radius: 1.9 },
   { position: [STAGE_POSITION[0] + 2, STAGE_POSITION[1]], radius: 1.7 },
 ]
-const SPEAKER_OBSTACLES: DecorObstacle[] = SPEAKER_POSITIONS.map((position) => ({ position, radius: 0.35 }))
+const PLAZA_BENCH_OBSTACLES: DecorObstacle[] = PLAZA_BENCH_SPOTS.map((position) => ({ position, radius: 0.65 }))
+const PLAZA_TREE_OBSTACLES: DecorObstacle[] = PLAZA_TREE_SPOTS.map((position) => ({ position, radius: 0.5 }))
 
 /**
  * The temple hall's footprint, same "a few overlapping circles" treatment as the stage —
@@ -394,7 +413,8 @@ export const GARDEN_DECOR_OBSTACLES: DecorObstacle[] = [
   ...WATERFALL_CHAIR_OBSTACLES,
   ...TABLE_OBSTACLES,
   ...STAGE_OBSTACLES,
-  ...SPEAKER_OBSTACLES,
+  ...PLAZA_BENCH_OBSTACLES,
+  ...PLAZA_TREE_OBSTACLES,
   ...TEMPLE_HALL_OBSTACLES,
   BODHI_TREE_OBSTACLE,
   ...TEMPLE_TREE_OBSTACLES,
@@ -430,8 +450,8 @@ const GARDEN_PATH_WAYPOINTS: PathWaypoints[] = [
   { points: [[0, 0], [-3.4, -0.5], [-6.4, -1.1], [-8.3, -1.3]], width: 1.6 },
   // Plaza → Group/Flower area (east)
   { points: [[0, 0], [2.6, -0.7], [5.0, -1.6], [6.9, -2.9]], width: 1.5 },
-  // Plaza → Stage/DJ/Dance Floor (south) — Garden V2 extends this same spine further
-  // south into the newly-walkable space instead of adding a second parallel path.
+  // Plaza → Activity Plaza/Dance Floor (south) — Garden V2 extends this same spine
+  // further south into the newly-walkable space instead of adding a second parallel path.
   { points: [[0, 0], [0, -3.3], [0, -6.6], [0, -9.3], [0, -10.6], [0, -12.0]], width: 1.7 },
   // Branch: Dance Floor → Future Activity Lawn (Zone L, southeast)
   { points: [[0, -10.6], [4.5, -11.3], [9, -12]], width: 1.3 },
@@ -545,6 +565,16 @@ export const SEATS: SeatDef[] = [
       id: `temple_edge_seat_${String(i + 1).padStart(2, '0')}`,
       position,
       rotation: facingTowards(position, TEMPLE_FORECOURT_CENTER),
+      kind: 'solo',
+    }),
+  ),
+  // 🌿 ลานกิจกรรม (Activity Plaza) benches — added when the DJ booth was removed, same
+  // real/sittable treatment as every other bench in the garden rather than pure decor.
+  ...PLAZA_BENCH_SPOTS.map(
+    (position, i): SeatDef => ({
+      id: `plaza_bench_${String(i + 1).padStart(2, '0')}`,
+      position,
+      rotation: facingTowards(position, STAGE_POSITION),
       kind: 'solo',
     }),
   ),
