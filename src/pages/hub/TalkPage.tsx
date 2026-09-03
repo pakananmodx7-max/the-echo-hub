@@ -27,7 +27,7 @@ const OPTIONS: TalkOption[] = [
     icon: '👩‍🏫',
     title: 'ครูแนะแนว',
     description: 'พูดคุยกับผู้ใหญ่ที่พร้อมช่วยเหลือ',
-    info: 'ในเวอร์ชันเต็ม คุณจะสามารถนัดพูดคุยกับครูแนะแนวของโรงเรียนได้โดยตรงผ่านแอป ตอนนี้เป็นการสาธิต UI เท่านั้น',
+    info: 'มีเรื่องอยากปรึกษาไหม?\n\nคุณสามารถฝากข้อความไว้ได้ตลอด\nครูแนะแนวจะเข้ามาตอบเมื่อพร้อม',
   },
   {
     id: 'trusted',
@@ -96,7 +96,26 @@ export function TalkPage() {
       </div>
 
       <Modal open={!!active} onClose={() => setActive(null)}>
-        {active ? (
+        {active && active.id === 'counselor' ? (
+          <div className="text-center">
+            <p className="text-3xl" aria-hidden>
+              {active.icon}
+            </p>
+            <p className="mt-2 font-semibold text-ink">{active.title}</p>
+            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-soft">{active.info}</p>
+            <p className="mt-4 text-xs leading-relaxed text-ink-faint">
+              ข้อความนี้ไม่ใช่บริการฉุกเฉิน และครูอาจไม่ได้ตอบทันที
+            </p>
+            <div className="mt-5 flex flex-col gap-2.5">
+              <Button fullWidth onClick={() => navigate('/hub/counselor')}>
+                💬 ส่งข้อความถึงครูแนะแนว
+              </Button>
+              <Button fullWidth variant="ghost" onClick={() => setActive(null)}>
+                ปิด
+              </Button>
+            </div>
+          </div>
+        ) : active ? (
           <div className="text-center">
             <p className="text-3xl" aria-hidden>
               {active.icon}

@@ -7,6 +7,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // The ONLY admin-authorization check anywhere in this file — driven entirely by the
+    // Firebase Auth custom claim set via scripts/setupAdmin.ts (Admin SDK only; no client
+    // write path can ever set this). Never derived from a username, a Firestore field, or
+    // any other client-controllable value — see the Counselor system's final report for why.
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
     // Resolves the caller's own publicId from their private user doc — never trusts a
     // client-supplied publicId for permission checks.
     function myPublicId() {
@@ -640,7 +648,162 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/chatRooms/$(request.resource.data.roomId)).data.status == 'active'
             && myPublicId() in get(/databases/$(database)/documents/chatRooms/$(request.resource.data.roomId)).data.participants
             && request.resource.data.ownerPublicId in get(/databases/$(database)/documents/chatRooms/$(request.resource.data.roomId)).data.participants)
+          ||
+          // The counselor (admin) notifying a student their message got a reply — only the
+          // admin account may ever write this type, and only addressed to the real student
+          // who owns the referenced counselorThreads doc (never an arbitrary ownerPublicId).
+          (request.resource.data.type == 'counselor_reply'
+            && isAdmin()
+            && request.resource.data.roomId == null
+            && request.resource.data.requestId == null
+            && request.resource.data.counselorThreadId is string
+            && get(/databases/$(database)/documents/counselorThreads/$(request.resource.data.counselorThreadId)).data.studentPublicId == request.resource.data.ownerPublicId)
         );
+    }
+
+    // A persistent, asynchronous private counseling thread — one per student, keyed by
+    // their own Firebase uid (never a publicId: the admin needs a stable, predictable way
+    // to address exactly one thread per student regardless of publicId, and a student's own
+    // uid is not sensitive to themselves). Readable only by that student and the admin
+    // (custom claim, see isAdmin() above) — nobody else, including any other student, can
+    // ever read or list any thread but is never granted blanket access to any OTHER
+    // collection here (Daily Journal, Family Memory, chatRooms, etc. are completely
+    // untouched by this file — see the Counselor system's final report §10 "Journal privacy
+    // confirmation"). studentPublicId/studentDisplayName (their codename) are denormalized
+    // at thread-creation time purely for the admin inbox's display — never email/uid shown
+    // in any UI. Never deleted (spec: no auto-retention/deletion in this version).
+    match /counselorThreads/{studentUid} {
+      allow read: if isSignedIn() && (request.auth.uid == studentUid || isAdmin());
+
+      // Only ever created by the student themselves, on their own first message — the admin
+      // never initiates a thread for a student who hasn't written in. Fixed initial shape:
+      // waiting_admin, unread for the admin, not (yet) unread for the student, no admin
+      // reply yet.
+      allow create: if isSignedIn() && request.auth.uid == studentUid
+        && request.resource.data.keys().hasOnly([
+             'studentUid', 'studentPublicId', 'studentDisplayName', 'status', 'createdAt',
+             'updatedAt', 'lastMessageAt', 'lastStudentMessageAt', 'lastAdminReplyAt',
+             'unreadForAdmin', 'unreadForStudent', 'lastMessagePreview'
+           ])
+        && request.resource.data.studentUid == studentUid
+        && request.resource.data.studentPublicId == myPublicId()
+        && request.resource.data.studentDisplayName is string
+        && request.resource.data.studentDisplayName.size() <= 60
+        && request.resource.data.status == 'waiting_admin'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.lastMessageAt == request.time
+        && request.resource.data.lastStudentMessageAt == request.time
+        && request.resource.data.lastAdminReplyAt == null
+        && request.resource.data.unreadForAdmin == true
+        && request.resource.data.unreadForStudent == false
+        && request.resource.data.lastMessagePreview is string
+        && request.resource.data.lastMessagePreview.size() <= 120;
+
+      // Four narrow, mutually exclusive update shapes — nothing else is ever a legal update.
+      allow update: if isSignedIn() && (
+        // The student sends a new message into an existing thread — reopens/keeps it
+        // waiting_admin from ANY prior status (including 'closed', satisfying "a new
+        // student message always reopens the thread"), flags it unread for the admin. The
+        // student's own unreadForStudent flag is deliberately left untouched by this
+        // branch — sending a new message says nothing about whether they've read earlier
+        // admin replies.
+        (request.auth.uid == studentUid
+          && resource.data.studentUid == studentUid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+               ['status', 'updatedAt', 'lastMessageAt', 'lastStudentMessageAt', 'unreadForAdmin', 'lastMessagePreview'])
+          && request.resource.data.status == 'waiting_admin'
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.lastMessageAt == request.time
+          && request.resource.data.lastStudentMessageAt == request.time
+          && request.resource.data.unreadForAdmin == true
+          && request.resource.data.lastMessagePreview is string
+          && request.resource.data.lastMessagePreview.size() <= 120)
+        ||
+        // The admin replies — flips to waiting_student, flags unread for the student.
+        (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+               ['status', 'updatedAt', 'lastMessageAt', 'lastAdminReplyAt', 'unreadForStudent', 'lastMessagePreview'])
+          && request.resource.data.status == 'waiting_student'
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.lastMessageAt == request.time
+          && request.resource.data.lastAdminReplyAt == request.time
+          && request.resource.data.unreadForStudent == true
+          && request.resource.data.lastMessagePreview is string
+          && request.resource.data.lastMessagePreview.size() <= 120)
+        ||
+        // The student marks their own "unread reply" flag read, opening the thread. The
+        // extra `unreadForAdmin` equality check (on top of the affectedKeys restriction) is
+        // deliberate, not redundant: diff().affectedKeys() is a VALUE diff — if
+        // unreadForAdmin already happens to equal its current value, Firestore considers it
+        // "untouched" regardless of whether the client's payload named it, which would
+        // otherwise let this branch silently accept a write that also names the other
+        // side's field the moment the two coincidentally already match. Comparing it
+        // explicitly against resource.data closes that gap unconditionally.
+        (request.auth.uid == studentUid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unreadForStudent'])
+          && request.resource.data.unreadForStudent == false
+          && request.resource.data.unreadForAdmin == resource.data.unreadForAdmin)
+        ||
+        // The admin marks their own "unread student message" flag read, opening the thread
+        // — same reasoning as above, mirrored for the other field.
+        (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unreadForAdmin'])
+          && request.resource.data.unreadForAdmin == false
+          && request.resource.data.unreadForStudent == resource.data.unreadForStudent)
+      );
+
+      allow delete: if false;
+
+      // One message per document, append-only — senderRole is set by the RULE (based on
+      // WHO is writing, never trusted from the client's own claimed value alone) matching
+      // the writer's actual identity, so a student can never forge senderRole == 'admin' or
+      // vice versa. `readAt` is always null at write time — read state is tracked
+      // separately per side (see readState below), never a per-message field, so opening a
+      // thread never needs an update per unread message.
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (request.auth.uid == studentUid || isAdmin());
+
+        allow create: if isSignedIn()
+          && request.resource.data.keys().hasOnly(['senderUid', 'senderRole', 'text', 'createdAt', 'readAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 5000
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.readAt == null
+          && (
+            (request.auth.uid == studentUid
+              && request.resource.data.senderUid == studentUid
+              && request.resource.data.senderRole == 'student')
+            ||
+            (isAdmin()
+              && request.resource.data.senderUid == request.auth.uid
+              && request.resource.data.senderRole == 'admin')
+          );
+
+        allow update, delete: if false;
+      }
+
+      // Realtime "read" cursor for the counselor read-receipt — same shape/guarantee as
+      // chatRooms/readState above: one document per SIDE (not per account — there is only
+      // ever one student and one counselor per thread), holding only a server timestamp of
+      // when that side last had the thread open. "อ่านแล้ว"/highlighting is derived
+      // client-side by comparing this against a message's own createdAt — never a
+      // per-message read flag. The document id (fixed 'student' or 'admin') is what a
+      // writer may only ever write their OWN side of.
+      match /readState/{role} {
+        allow read: if isSignedIn() && (request.auth.uid == studentUid || isAdmin());
+
+        allow create, update: if isSignedIn()
+          && request.resource.data.keys().hasOnly(['lastReadAt'])
+          && request.resource.data.lastReadAt == request.time
+          && (
+            (role == 'student' && request.auth.uid == studentUid)
+            || (role == 'admin' && isAdmin())
+          );
+
+        allow delete: if false;
+      }
     }
 
     // --- Privacy-safe, aggregate-only usage statistics for the Google Sheets dashboard

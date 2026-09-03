@@ -4,6 +4,7 @@ import { Button } from '../components/Button'
 import { LoginGardenBackground } from '../components/LoginGardenBackground'
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal'
 import { useAuth } from '../hooks/useAuth'
+import { resolveLoginEmail } from '../features/auth/adminIdentity'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -19,8 +20,13 @@ export function LoginPage() {
     setError(null)
     setLoading(true)
     try {
-      const user = await login(email, password)
-      if (!user.codename) navigate('/onboarding/codename')
+      // Same login form/field for everyone (spec: no separate visible admin login screen) —
+      // the admin username "admin12345" resolves to its one reserved internal Firebase Auth
+      // email here, deterministically and with no secret involved (see adminIdentity.ts);
+      // anything else passes through unchanged as a normal student email.
+      const user = await login(resolveLoginEmail(email), password)
+      if (user.isAdmin) navigate('/admin/counselor')
+      else if (!user.codename) navigate('/onboarding/codename')
       else if (!user.mood) navigate('/onboarding/mood')
       else navigate('/hub')
     } catch (err) {

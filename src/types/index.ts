@@ -40,6 +40,12 @@ export interface AuthUser {
   bestStreak: number
   /** YYYY-MM-DD (Bangkok-local) of the last completed daily check-in — the source of truth for "has today's check-in happened", never inferred from localStorage. */
   lastCheckinDate: string | null
+  /** True only when this account's Firebase Auth ID token carries the `admin: true` custom
+   * claim (see firebaseAuthService.ts) — the sole source of admin authorization anywhere in
+   * this app. Never set from a username match, a Firestore field, or any other
+   * client-controllable value; always false in mock/local-auth mode (no Firebase project
+   * configured), since custom claims don't exist there. */
+  isAdmin: boolean
 }
 
 export interface RandomMission {

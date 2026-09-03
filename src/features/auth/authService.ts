@@ -85,6 +85,9 @@ class LocalAuthService implements AuthService {
       currentStreak: 0,
       bestStreak: 0,
       lastCheckinDate: null,
+      // Mock/local-auth mode has no Firebase project, so no Firebase Auth custom claims
+      // exist at all — always false here; only FirebaseAuthService can ever resolve true.
+      isAdmin: false,
     }
     users[normalized] = { password, user }
     writeUsers(users)
@@ -116,6 +119,7 @@ class LocalAuthService implements AuthService {
         currentStreak: 0,
         bestStreak: 0,
         lastCheckinDate: null,
+        isAdmin: false,
       }
       account = { password, user }
       users[normalized] = account

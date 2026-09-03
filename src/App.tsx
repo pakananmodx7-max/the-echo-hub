@@ -2,7 +2,7 @@ import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
-import { RequireAuth, RequireOnboarding } from './components/RouteGuards'
+import { RequireAdmin, RequireAuth, RequireOnboarding } from './components/RouteGuards'
 import { WelcomePage } from './pages/WelcomePage'
 import { LoginPage } from './pages/LoginPage'
 import { GardenLoadingScreen } from './pages/hub/garden/GardenLoadingScreen'
@@ -27,6 +27,9 @@ const OpenHeartQuestionPage = lazy(() =>
 )
 const FamilyMemoryPage = lazy(() => import('./pages/hub/activities/FamilyMemoryPage').then((m) => ({ default: m.FamilyMemoryPage })))
 const TalkPage = lazy(() => import('./pages/hub/TalkPage').then((m) => ({ default: m.TalkPage })))
+const CounselorChatPage = lazy(() =>
+  import('./pages/hub/talk/CounselorChatPage').then((m) => ({ default: m.CounselorChatPage })),
+)
 const NotificationsPage = lazy(() => import('./pages/hub/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
 const ChatRequestsPage = lazy(() => import('./pages/hub/talk/ChatRequestsPage').then((m) => ({ default: m.ChatRequestsPage })))
 const PrivateChatPage = lazy(() => import('./pages/hub/talk/PrivateChatPage').then((m) => ({ default: m.PrivateChatPage })))
@@ -45,6 +48,13 @@ const AvatarStudioPage = lazy(() =>
 )
 const WhoAmIGamePage = lazy(() =>
   import('./pages/hub/friends/whoAmI/WhoAmIGamePage').then((m) => ({ default: m.WhoAmIGamePage })),
+)
+
+const AdminCounselorInboxPage = lazy(() =>
+  import('./pages/admin/AdminCounselorInboxPage').then((m) => ({ default: m.AdminCounselorInboxPage })),
+)
+const AdminCounselorChatPage = lazy(() =>
+  import('./pages/admin/AdminCounselorChatPage').then((m) => ({ default: m.AdminCounselorChatPage })),
 )
 
 function SimpleLoadingFallback() {
@@ -109,6 +119,7 @@ function App() {
               <Route path="talk" element={<TalkPage />} />
               <Route path="talk/requests" element={<ChatRequestsPage />} />
               <Route path="talk/chat/:roomId" element={<PrivateChatPage />} />
+              <Route path="counselor" element={<CounselorChatPage />} />
               <Route
                 path="garden"
                 element={
@@ -140,6 +151,28 @@ function App() {
               />
               <Route path="me" element={<ProfilePage />} />
             </Route>
+          </Route>
+
+          {/* Separate from the /hub tree on purpose: the admin dashboard has no student
+              onboarding state (codename/mood) and no bottom nav (see AdminHeader), so it
+              never goes through RequireOnboarding/HubLayout — only RequireAdmin. */}
+          <Route element={<RequireAdmin />}>
+            <Route
+              path="/admin/counselor"
+              element={
+                <Suspense fallback={<SimpleLoadingFallback />}>
+                  <AdminCounselorInboxPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/admin/counselor/:studentUid"
+              element={
+                <Suspense fallback={<SimpleLoadingFallback />}>
+                  <AdminCounselorChatPage />
+                </Suspense>
+              }
+            />
           </Route>
         </Route>
 

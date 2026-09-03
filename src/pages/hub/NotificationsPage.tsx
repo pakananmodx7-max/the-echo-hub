@@ -311,6 +311,19 @@ export function NotificationsPage() {
                             เข้าแชท
                           </Button>
                         </div>
+                      ) : n.type === 'counselor_reply' ? (
+                        <div className="mt-3">
+                          <Button
+                            className="!px-4 !py-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void Promise.all(item.ids.map((id) => markRead(id)))
+                              navigate('/hub/counselor')
+                            }}
+                          >
+                            เข้าไปดู
+                          </Button>
+                        </div>
                       ) : null}
                     </div>
                   </div>

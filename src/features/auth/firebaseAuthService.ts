@@ -10,6 +10,7 @@ import { Timestamp, doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc 
 import { getFirebaseAuth, getFirebaseFirestore } from '../../lib/firebase'
 import type { AuthUser } from '../../types'
 import type { AuthService } from './authService'
+import { isReservedAdminEmail } from './adminIdentity'
 
 interface UserDoc {
   publicId: string
@@ -32,7 +33,7 @@ function randomPublicId(): string {
   return `pub-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-function toAuthUser(fbUser: FirebaseUser, docData: UserDoc): AuthUser {
+function toAuthUser(fbUser: FirebaseUser, docData: UserDoc, isAdmin: boolean): AuthUser {
   return {
     id: fbUser.uid,
     email: fbUser.email ?? '',
@@ -52,7 +53,20 @@ function toAuthUser(fbUser: FirebaseUser, docData: UserDoc): AuthUser {
     currentStreak: docData.currentStreak ?? 0,
     bestStreak: docData.bestStreak ?? 0,
     lastCheckinDate: docData.lastCheckinDate ?? null,
+    isAdmin,
   }
+}
+
+/** Reads the `admin: true` custom claim off the account's OWN current ID token — the sole
+ * admin-authorization source anywhere in this app (see setupAdmin.ts, firestore.rules'
+ * isAdmin()). A brand-new sign-in (signInWithEmailAndPassword) always mints a fresh token
+ * that already reflects whatever claims the Admin SDK set beforehand, so no force-refresh is
+ * needed on the login path; onAuthStateChanged uses the same (possibly cached) token, which
+ * is correct for the same reason — claims are set once, well before the account ever signs
+ * in, never mid-session. */
+async function resolveIsAdmin(fbUser: FirebaseUser): Promise<boolean> {
+  const tokenResult = await fbUser.getIdTokenResult()
+  return tokenResult.claims.admin === true
 }
 
 /** Thai-language error messages matching the mock service's existing tone/style. */
@@ -117,8 +131,16 @@ export class FirebaseAuthService implements AuthService {
   onAuthStateChanged(callback: (user: AuthUser | null) => void): () => void {
     const auth = getFirebaseAuth()
     let unsubDoc: (() => void) | null = null
+    // Bumped on every firing of onFirebaseAuthStateChanged — lets the async resolveIsAdmin
+    // callback below tell "am I still the most recent auth event" apart from a stale one
+    // (e.g. a fast logout landing while the claims fetch for the just-signed-in user is
+    // still in flight), so a stale resolution can never subscribe a doc listener that the
+    // subsequent, faster-resolving event already tore down or superseded.
+    let generation = 0
 
     const unsubAuth = onFirebaseAuthStateChanged(auth, (fbUser) => {
+      generation += 1
+      const myGeneration = generation
       if (unsubDoc) {
         unsubDoc()
         unsubDoc = null
@@ -129,17 +151,20 @@ export class FirebaseAuthService implements AuthService {
         callback(null)
         return
       }
-      unsubDoc = onSnapshot(doc(getFirebaseFirestore(), 'users', fbUser.uid), (snap) => {
-        if (!snap.exists()) {
-          this.cachedUser = null
-          callback(null)
-          return
-        }
-        const docData = snap.data() as UserDoc
-        this.cachedPublicId = docData.publicId
-        const user = toAuthUser(fbUser, docData)
-        this.cachedUser = user
-        callback(user)
+      void resolveIsAdmin(fbUser).then((isAdmin) => {
+        if (myGeneration !== generation) return
+        unsubDoc = onSnapshot(doc(getFirebaseFirestore(), 'users', fbUser.uid), (snap) => {
+          if (!snap.exists()) {
+            this.cachedUser = null
+            callback(null)
+            return
+          }
+          const docData = snap.data() as UserDoc
+          this.cachedPublicId = docData.publicId
+          const user = toAuthUser(fbUser, docData, isAdmin)
+          this.cachedUser = user
+          callback(user)
+        })
       })
     })
 
@@ -154,11 +179,21 @@ export class FirebaseAuthService implements AuthService {
     if (!normalized || !password || password.length < 6) {
       throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง (รหัสผ่านอย่างน้อย 6 ตัวอักษร)')
     }
+    // Reserves the admin's internal identity from public self-registration — without this,
+    // anyone could sign up as this exact address through the normal Register page before
+    // the real admin account is provisioned via scripts/setupAdmin.ts. Harmless either way
+    // for admin AUTHORIZATION (that account would still carry zero custom claims, so
+    // isAdmin stays false — see resolveIsAdmin), but blocking it outright avoids ever
+    // squatting the slot the real admin account is meant to occupy.
+    if (isReservedAdminEmail(normalized)) {
+      throw new Error('อีเมลนี้ถูกใช้งานแล้ว ลองเข้าสู่ระบบแทน')
+    }
     try {
       const cred = await createUserWithEmailAndPassword(getFirebaseAuth(), normalized, password)
       const docData = await createUserDoc(cred.user.uid)
       this.cachedPublicId = docData.publicId
-      const user = toAuthUser(cred.user, docData)
+      const isAdmin = await resolveIsAdmin(cred.user)
+      const user = toAuthUser(cred.user, docData, isAdmin)
       this.cachedUser = user
       return user
     } catch (err) {
@@ -177,7 +212,8 @@ export class FirebaseAuthService implements AuthService {
       let snap = await getDoc(userRef)
       const docData = snap.exists() ? (snap.data() as UserDoc) : await createUserDoc(cred.user.uid)
       this.cachedPublicId = docData.publicId
-      const user = toAuthUser(cred.user, docData)
+      const isAdmin = await resolveIsAdmin(cred.user)
+      const user = toAuthUser(cred.user, docData, isAdmin)
       this.cachedUser = user
       return user
     } catch (err) {

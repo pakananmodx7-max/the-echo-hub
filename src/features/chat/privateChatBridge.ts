@@ -95,6 +95,11 @@ export type NotificationType =
   | 'chat_request_accepted'
   | 'chat_request_declined'
   | 'new_message'
+  /** The counselor (admin) replied to the student's own persistent ครูแนะแนว thread — see
+   * src/features/counselor/counselorBridge.ts. Fully separate from the chat request/room
+   * lifecycle above (never has a roomId/requestId), so it reuses only the shared
+   * notification collection/type, not any of the chat-specific fields' meaning. */
+  | 'counselor_reply'
 
 export interface ChatNotification {
   id: string
@@ -105,6 +110,9 @@ export interface ChatNotification {
   fromAvatarId: string | null
   requestId: string | null
   roomId: string | null
+  /** Only set for type === 'counselor_reply' — the student's own uid, which doubles as the
+   * counselorThreads/{uid} document id (see counselorBridge.ts). */
+  counselorThreadId: string | null
   preview: string | null
   read: boolean
   createdAtMs: number | null
@@ -220,6 +228,7 @@ function toNotificationRecord(snap: QueryDocumentSnapshot<DocumentData>): ChatNo
     fromAvatarId: data.fromAvatarId ?? null,
     requestId: data.requestId ?? null,
     roomId: data.roomId ?? null,
+    counselorThreadId: data.counselorThreadId ?? null,
     preview: data.preview ?? null,
     read: !!data.read,
     createdAtMs: toMillis(data.createdAt),

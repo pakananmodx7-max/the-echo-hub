@@ -11,6 +11,8 @@ export function notificationText(n: ChatNotification): string {
       return `${n.fromCodename} ยังไม่สะดวกคุยตอนนี้`
     case 'new_message':
       return `💬 ${n.fromCodename} ส่งข้อความใหม่ถึงคุณ`
+    case 'counselor_reply':
+      return '👩‍🏫 ครูแนะแนวตอบข้อความของคุณแล้ว'
     default:
       return ''
   }
